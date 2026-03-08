@@ -29,6 +29,10 @@ WARMUP="${WARMUP:-15}"
 RAMP_UP="${RAMP_UP:-5}"
 COOL_DOWN="${COOL_DOWN:-15}"
 
+# Create timestamped run directory
+RUN_DIR="$RESULTS_DIR/$TIMESTAMP"
+mkdir -p "$RUN_DIR"
+
 # ---------------------------------------------------------------------------
 # Ensure setup is done (idempotent — fast if already set up)
 # ---------------------------------------------------------------------------
@@ -86,7 +90,8 @@ echo "  Duration:   ${DURATION}s"
 echo "  Warmup:     ${WARMUP}s"
 echo "  Ramp-up:    ${RAMP_UP}s"
 echo "  Cool-down:  ${COOL_DOWN}s"
-echo "  Timestamp:  $TIMESTAMP"
+echo "  Run ID:     $TIMESTAMP"
+echo "  Output:     $RUN_DIR"
 echo "  JMeter:     ${JMETER:-N/A}"
 echo "  Python:     $PYTHON"
 echo "============================================"
@@ -99,8 +104,8 @@ run_jmeter() {
   local arch="$1"
   local host="$2"
   local port="$3"
-  local output_file="$RESULTS_DIR/${arch}_${TIMESTAMP}.jtl"
-  local log_file="$RESULTS_DIR/${arch}_${TIMESTAMP}.log"
+  local output_file="$RUN_DIR/${arch}.jtl"
+  local log_file="$RUN_DIR/${arch}.log"
 
   info "Running JMeter for $arch -> $host:$port"
   info "  Threads=$THREADS, Duration=${DURATION}s, Warmup=${WARMUP}s"
@@ -132,7 +137,7 @@ run_jmeter() {
   fi
 
   # Generate JMeter HTML dashboard
-  local html_report_dir="$RESULTS_DIR/${arch}_${TIMESTAMP}_report"
+  local html_report_dir="$RUN_DIR/${arch}_report"
   info "Generating JMeter HTML report -> $html_report_dir"
   "$JMETER" -g "$output_file" -o "$html_report_dir" || warn "HTML report generation failed (non-fatal)"
 }
@@ -197,27 +202,25 @@ test_microservices() {
 run_analysis() {
   step "Running analysis and generating charts..."
 
-  local mono_file
-  local micro_file
-  mono_file=$(ls -t "$RESULTS_DIR"/monolith_*.jtl 2>/dev/null | head -1) || true
-  micro_file=$(ls -t "$RESULTS_DIR"/microservices_*.jtl 2>/dev/null | head -1) || true
+  local mono_file="$RUN_DIR/monolith.jtl"
+  local micro_file="$RUN_DIR/microservices.jtl"
 
-  if [[ -z "$mono_file" ]] || [[ -z "$micro_file" ]]; then
+  if [[ ! -f "$mono_file" ]] || [[ ! -f "$micro_file" ]]; then
     warn "Cannot run comparison analysis — need both monolith and microservices results."
-    if [[ -n "$mono_file" ]]; then
+    if [[ -f "$mono_file" ]]; then
       info "Running single analysis for monolith..."
       "$PYTHON" "$PROJECT_DIR/python/visualize.py" \
         --single "$mono_file" \
         --label Monolith \
         --warmup "$WARMUP" \
-        --output "$RESULTS_DIR/charts"
-    elif [[ -n "$micro_file" ]]; then
+        --output "$RUN_DIR/charts"
+    elif [[ -f "$micro_file" ]]; then
       info "Running single analysis for microservices..."
       "$PYTHON" "$PROJECT_DIR/python/visualize.py" \
         --single "$micro_file" \
         --label Microservices \
         --warmup "$WARMUP" \
-        --output "$RESULTS_DIR/charts"
+        --output "$RUN_DIR/charts"
     fi
     return 0
   fi
@@ -229,10 +232,10 @@ run_analysis() {
     --monolith "$mono_file" \
     --microservices "$micro_file" \
     --warmup "$WARMUP" \
-    --output "$RESULTS_DIR/charts" \
-    --results-dir "$RESULTS_DIR"
+    --output "$RUN_DIR/charts" \
+    --results-dir "$RUN_DIR"
 
-  info "Charts saved to: $RESULTS_DIR/charts/"
+  info "Charts saved to: $RUN_DIR/charts/"
 }
 
 # ---------------------------------------------------------------------------
@@ -248,6 +251,7 @@ echo ""
 info "============================================"
 info "  Experiment Complete!"
 info "============================================"
-info "  Results:  $RESULTS_DIR/"
-info "  Charts:   $RESULTS_DIR/charts/"
+info "  Run ID:   $TIMESTAMP"
+info "  Results:  $RUN_DIR/"
+info "  Charts:   $RUN_DIR/charts/"
 info "============================================"
