@@ -1,0 +1,54 @@
+# Docker Compose for Monolith Architecture - Local Testing
+# Usage: docker compose -f docker-compose-monolith.yml up --build
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: benchmark-db-monolith
+    environment:
+      POSTGRES_DB: benchmarkdb
+      POSTGRES_USER: benchmark
+      POSTGRES_PASSWORD: benchmark
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./db/sql:/sql:ro
+      - ./db/docker-init/monolith:/docker-entrypoint-initdb.d:ro
+      - pgdata-monolith:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U benchmark -d benchmarkdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  monolith:
+    build:
+      context: .
+      dockerfile: monolith/Dockerfile
+    container_name: benchmark-monolith
+    ports:
+      - "8080:8080"
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: benchmarkdb
+      DB_USER: benchmark
+      DB_PASSWORD: benchmark
+      JAVA_OPTS: "-Xms256m -Xmx512m -XX:+UseG1GC"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 768M
+
+volumes:
+  pgdata-monolith:

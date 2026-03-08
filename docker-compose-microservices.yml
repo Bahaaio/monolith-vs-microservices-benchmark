@@ -1,0 +1,192 @@
+# Docker Compose for Microservices Architecture - Local Testing
+# Usage: docker compose -f docker-compose-microservices.yml up --build
+
+services:
+  # --- Databases (one per service) ---
+  user-db:
+    image: postgres:15-alpine
+    container_name: benchmark-user-db
+    environment:
+      POSTGRES_DB: userdb
+      POSTGRES_USER: benchmark
+      POSTGRES_PASSWORD: benchmark
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./db/sql:/sql:ro
+      - ./db/docker-init/user-db:/docker-entrypoint-initdb.d:ro
+      - pgdata-user:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U benchmark -d userdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  product-db:
+    image: postgres:15-alpine
+    container_name: benchmark-product-db
+    environment:
+      POSTGRES_DB: productdb
+      POSTGRES_USER: benchmark
+      POSTGRES_PASSWORD: benchmark
+    ports:
+      - "5433:5432"
+    volumes:
+      - ./db/sql:/sql:ro
+      - ./db/docker-init/product-db:/docker-entrypoint-initdb.d:ro
+      - pgdata-product:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U benchmark -d productdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  order-db:
+    image: postgres:15-alpine
+    container_name: benchmark-order-db
+    environment:
+      POSTGRES_DB: orderdb
+      POSTGRES_USER: benchmark
+      POSTGRES_PASSWORD: benchmark
+    ports:
+      - "5434:5432"
+    volumes:
+      - ./db/sql:/sql:ro
+      - ./db/docker-init/order-db:/docker-entrypoint-initdb.d:ro
+      - pgdata-order:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U benchmark -d orderdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # --- Application Services ---
+  user-service:
+    build:
+      context: .
+      dockerfile: microservices/user-service/Dockerfile
+    container_name: benchmark-user-service
+    ports:
+      - "8081:8080"
+    environment:
+      DB_HOST: user-db
+      DB_PORT: 5432
+      DB_NAME: userdb
+      DB_USER: benchmark
+      DB_PASSWORD: benchmark
+      JAVA_OPTS: "-Xms128m -Xmx256m -XX:+UseG1GC"
+    depends_on:
+      user-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 384M
+
+  product-service:
+    build:
+      context: .
+      dockerfile: microservices/product-service/Dockerfile
+    container_name: benchmark-product-service
+    ports:
+      - "8082:8080"
+    environment:
+      DB_HOST: product-db
+      DB_PORT: 5432
+      DB_NAME: productdb
+      DB_USER: benchmark
+      DB_PASSWORD: benchmark
+      JAVA_OPTS: "-Xms128m -Xmx256m -XX:+UseG1GC"
+    depends_on:
+      product-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 384M
+
+  order-service:
+    build:
+      context: .
+      dockerfile: microservices/order-service/Dockerfile
+    container_name: benchmark-order-service
+    ports:
+      - "8083:8080"
+    environment:
+      DB_HOST: order-db
+      DB_PORT: 5432
+      DB_NAME: orderdb
+      DB_USER: benchmark
+      DB_PASSWORD: benchmark
+      USER_SERVICE_URL: http://user-service:8080
+      PRODUCT_SERVICE_URL: http://product-service:8080
+      JAVA_OPTS: "-Xms128m -Xmx256m -XX:+UseG1GC"
+    depends_on:
+      order-db:
+        condition: service_healthy
+      user-service:
+        condition: service_healthy
+      product-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 384M
+
+  # --- API Gateway (single entry point) ---
+  gateway:
+    build:
+      context: .
+      dockerfile: microservices/gateway/Dockerfile
+    container_name: benchmark-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      USER_SERVICE_URL: http://user-service:8080
+      PRODUCT_SERVICE_URL: http://product-service:8080
+      ORDER_SERVICE_URL: http://order-service:8080
+      JAVA_OPTS: "-Xms128m -Xmx256m -XX:+UseG1GC"
+    depends_on:
+      user-service:
+        condition: service_healthy
+      product-service:
+        condition: service_healthy
+      order-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 384M
+
+volumes:
+  pgdata-user:
+  pgdata-product:
+  pgdata-order:
