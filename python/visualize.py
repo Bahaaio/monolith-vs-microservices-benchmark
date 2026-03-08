@@ -330,6 +330,128 @@ def plot_latency_over_time(monolith_df: pd.DataFrame, micro_df: pd.DataFrame, ou
     print(f"  Saved: latency_over_time.png")
 
 
+def plot_throughput_bar(monolith_df: pd.DataFrame, micro_df: pd.DataFrame, output_dir: str):
+    """Simple side-by-side bar chart of total throughput (req/s)."""
+    mono_m = compute_metrics(monolith_df)
+    micro_m = compute_metrics(micro_df)
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+
+    architectures = ["Monolith", "Microservices"]
+    throughputs = [mono_m["throughput_rps"], micro_m["throughput_rps"]]
+    colors = [COLORS["monolith"], COLORS["microservices"]]
+
+    bars = ax.bar(architectures, throughputs, color=colors, width=0.5)
+
+    for bar, val in zip(bars, throughputs):
+        ax.text(bar.get_x() + bar.get_width() / 2., bar.get_height(),
+                f"{val:,.1f}", ha="center", va="bottom", fontsize=13, fontweight="bold")
+
+    ax.set_ylabel("Throughput (req/s)")
+    ax.set_title("Overall Throughput Comparison")
+
+    # Add ratio annotation
+    if throughputs[1] > 0:
+        ratio = throughputs[0] / throughputs[1]
+        ax.annotate(f"Monolith is {ratio:.1f}x higher",
+                    xy=(0.5, 0.92), xycoords="axes fraction",
+                    ha="center", fontsize=11, fontstyle="italic", color="gray")
+
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_dir, "throughput_bar.png"))
+    plt.close()
+    print(f"  Saved: throughput_bar.png")
+
+
+def plot_latency_boxplot(monolith_df: pd.DataFrame, micro_df: pd.DataFrame, output_dir: str):
+    """Side-by-side boxplots showing latency spread, quartiles, and outliers."""
+    fig, ax = plt.subplots(figsize=(9, 7))
+
+    # Cap at P99 of each to avoid extreme outlier compression
+    mono_cap = monolith_df["elapsed"].quantile(0.99)
+    micro_cap = micro_df["elapsed"].quantile(0.99)
+    mono_capped = monolith_df["elapsed"][monolith_df["elapsed"] <= mono_cap]
+    micro_capped = micro_df["elapsed"][micro_df["elapsed"] <= micro_cap]
+
+    # Subsample to 100k points max for performance (boxplot with millions of points is slow)
+    max_samples = 100_000
+    if len(mono_capped) > max_samples:
+        mono_capped = mono_capped.sample(n=max_samples, random_state=42)
+    if len(micro_capped) > max_samples:
+        micro_capped = micro_capped.sample(n=max_samples, random_state=42)
+
+    # Build a combined DataFrame for seaborn
+    combined = pd.DataFrame({
+        "Response Time (ms)": pd.concat([mono_capped, micro_capped], ignore_index=True),
+        "Architecture": (["Monolith"] * len(mono_capped) + ["Microservices"] * len(micro_capped)),
+    })
+
+    sns.boxplot(
+        data=combined,
+        x="Architecture",
+        y="Response Time (ms)",
+        palette={"Monolith": COLORS["monolith"], "Microservices": COLORS["microservices"]},
+        width=0.5,
+        fliersize=2,
+        ax=ax,
+    )
+
+    # Annotate medians
+    for i, arch in enumerate(["Monolith", "Microservices"]):
+        subset = combined[combined["Architecture"] == arch]["Response Time (ms)"]
+        median = subset.median()
+        ax.text(i, median, f" {median:.1f}ms",
+                ha="left", va="center", fontsize=10, fontweight="bold", color="black")
+
+    ax.set_title("Response Time Distribution (capped at P99)")
+
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_dir, "latency_boxplot.png"))
+    plt.close()
+    print(f"  Saved: latency_boxplot.png")
+
+
+def plot_endpoint_latency_over_time(monolith_df: pd.DataFrame, micro_df: pd.DataFrame, output_dir: str):
+    """Per-endpoint P95 latency over time — exposes cross-service call bottlenecks."""
+    main_endpoints = ["GET /products", "GET /users", "POST /orders"]
+    endpoint_colors = {"GET /products": "#4CAF50", "GET /users": "#2196F3", "POST /orders": "#FF5722"}
+    endpoint_styles = {"GET /products": "-", "GET /users": "--", "POST /orders": "-."}
+
+    fig, axes = plt.subplots(1, 2, figsize=(18, 7), sharey=True)
+
+    for ax, (label, df) in zip(axes, [("Monolith", monolith_df), ("Microservices", micro_df)]):
+        df_copy = df.copy()
+        df_copy["second"] = ((df_copy["timeStamp"] - df_copy["timeStamp"].min()) / 1000).astype(int)
+        df_copy["bucket"] = (df_copy["second"] // 10) * 10
+
+        for endpoint in main_endpoints:
+            ep_data = df_copy[df_copy["endpoint"] == endpoint]
+            if ep_data.empty:
+                continue
+
+            p95_over_time = ep_data.groupby("bucket")["elapsed"].quantile(0.95)
+            ax.plot(
+                p95_over_time.index,
+                p95_over_time.values,
+                label=endpoint,
+                color=endpoint_colors.get(endpoint, "gray"),
+                linestyle=endpoint_styles.get(endpoint, "-"),
+                alpha=0.85,
+                linewidth=1.8,
+            )
+
+        ax.set_title(f"{label}")
+        ax.set_xlabel("Time (seconds)")
+        ax.legend(loc="upper right")
+
+    axes[0].set_ylabel("P95 Latency (ms)")
+    plt.suptitle("Per-Endpoint P95 Latency Over Time (10s buckets)", fontsize=15, y=1.02)
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_dir, "endpoint_latency_over_time.png"), bbox_inches="tight")
+    plt.close()
+    print(f"  Saved: endpoint_latency_over_time.png")
+
+
 def plot_scaling_comparison(results_dir: str, output_dir: str):
     """
     If multiple result files exist with naming convention:
@@ -439,6 +561,9 @@ def run_comparison(monolith_path: str, micro_path: str, output_dir: str,
     plot_per_endpoint_comparison(mono_df, micro_df, output_dir)
     plot_error_rate_comparison(mono_df, micro_df, output_dir)
     plot_latency_over_time(mono_df, micro_df, output_dir)
+    plot_throughput_bar(mono_df, micro_df, output_dir)
+    plot_latency_boxplot(mono_df, micro_df, output_dir)
+    plot_endpoint_latency_over_time(mono_df, micro_df, output_dir)
 
     # Generate CSV report
     print("\nGenerating reports...")
