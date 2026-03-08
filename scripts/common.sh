@@ -70,3 +70,62 @@ detect_python() {
     return 1
   fi
 }
+
+# ---------------------------------------------------------------------------
+# Shared analysis function - runs Python visualization on benchmark results
+# ---------------------------------------------------------------------------
+# Usage:
+#   analyze_results <run_dir> <warmup_seconds>
+#
+# Args:
+#   run_dir:         Path to the timestamped run directory (e.g., results/2026-03-08_14-30-00)
+#   warmup_seconds:  Number of warmup seconds to discard (default: 0)
+#
+# Expects:
+#   $run_dir/monolith.jtl
+#   $run_dir/microservices.jtl
+#
+# Outputs:
+#   $run_dir/charts/
+#
+# Returns:
+#   0 on success, 1 on failure (missing files or directory)
+analyze_results() {
+  local run_dir="$1"
+  local warmup="${2:-0}"
+
+  if [[ ! -d "$run_dir" ]]; then
+    error "Run directory not found: $run_dir"
+    return 1
+  fi
+
+  local mono_file="$run_dir/monolith.jtl"
+  local micro_file="$run_dir/microservices.jtl"
+  local output_dir="$run_dir/charts"
+
+  step "Running analysis and generating charts..."
+
+  # Both files must exist
+  if [[ ! -f "$mono_file" ]]; then
+    error "Missing monolith results: $mono_file"
+    return 1
+  fi
+
+  if [[ ! -f "$micro_file" ]]; then
+    error "Missing microservices results: $micro_file"
+    return 1
+  fi
+
+  # Both files exist — run comparison
+  info "Monolith results:       $mono_file"
+  info "Microservices results:  $micro_file"
+
+  "$PYTHON" "$PROJECT_DIR/python/visualize.py" \
+    --monolith "$mono_file" \
+    --microservices "$micro_file" \
+    --warmup "$warmup" \
+    --output "$output_dir" \
+    --results-dir "$run_dir"
+
+  info "Charts saved to: $output_dir/"
+}

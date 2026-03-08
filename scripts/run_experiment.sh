@@ -197,55 +197,13 @@ test_microservices() {
 }
 
 # ---------------------------------------------------------------------------
-# Run analysis
-# ---------------------------------------------------------------------------
-run_analysis() {
-  step "Running analysis and generating charts..."
-
-  local mono_file="$RUN_DIR/monolith.jtl"
-  local micro_file="$RUN_DIR/microservices.jtl"
-
-  if [[ ! -f "$mono_file" ]] || [[ ! -f "$micro_file" ]]; then
-    warn "Cannot run comparison analysis — need both monolith and microservices results."
-    if [[ -f "$mono_file" ]]; then
-      info "Running single analysis for monolith..."
-      "$PYTHON" "$PROJECT_DIR/python/visualize.py" \
-        --single "$mono_file" \
-        --label Monolith \
-        --warmup "$WARMUP" \
-        --output "$RUN_DIR/charts"
-    elif [[ -f "$micro_file" ]]; then
-      info "Running single analysis for microservices..."
-      "$PYTHON" "$PROJECT_DIR/python/visualize.py" \
-        --single "$micro_file" \
-        --label Microservices \
-        --warmup "$WARMUP" \
-        --output "$RUN_DIR/charts"
-    fi
-    return 0
-  fi
-
-  info "Monolith results:       $mono_file"
-  info "Microservices results:  $micro_file"
-
-  "$PYTHON" "$PROJECT_DIR/python/visualize.py" \
-    --monolith "$mono_file" \
-    --microservices "$micro_file" \
-    --warmup "$WARMUP" \
-    --output "$RUN_DIR/charts" \
-    --results-dir "$RUN_DIR"
-
-  info "Charts saved to: $RUN_DIR/charts/"
-}
-
-# ---------------------------------------------------------------------------
 # Main: run monolith, then microservices, then analysis
 # ---------------------------------------------------------------------------
 test_monolith
 info "Cooling down for $COOL_DOWN seconds before next test..."
 sleep "$COOL_DOWN"
 test_microservices
-run_analysis
+analyze_results "$RUN_DIR" "$WARMUP"
 
 echo ""
 info "============================================"
