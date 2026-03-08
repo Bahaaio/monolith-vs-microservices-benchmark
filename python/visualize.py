@@ -390,9 +390,11 @@ def plot_latency_boxplot(monolith_df: pd.DataFrame, micro_df: pd.DataFrame, outp
         data=combined,
         x="Architecture",
         y="Response Time (ms)",
+        hue="Architecture",
         palette={"Monolith": COLORS["monolith"], "Microservices": COLORS["microservices"]},
         width=0.5,
         fliersize=2,
+        legend=False,
         ax=ax,
     )
 

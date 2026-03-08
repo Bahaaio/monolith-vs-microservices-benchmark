@@ -42,20 +42,14 @@ public class OrderService {
             throw new RuntimeException("User not found: " + request.getUserId());
         }
 
-        // Validate product exists and has sufficient stock
+        // Validate product exists
         Product product = productService.getProductById(request.getProductId());
-        if (product.getStock() < request.getQuantity()) {
-            throw new RuntimeException("Insufficient stock for product: " + product.getId());
-        }
 
         // Calculate total price
         BigDecimal totalPrice = product.getPrice().multiply(BigDecimal.valueOf(request.getQuantity()));
 
         Order order = new Order(request.getUserId(), request.getProductId(), request.getQuantity(), totalPrice);
         order.setStatus(OrderStatus.CONFIRMED);
-
-        // Decrease stock
-        product.setStock(product.getStock() - request.getQuantity());
 
         return orderRepository.save(order);
     }

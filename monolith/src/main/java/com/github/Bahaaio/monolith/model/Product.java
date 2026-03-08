@@ -12,7 +12,7 @@ public class Product extends BaseProduct {
 
     public Product() {}
 
-    public Product(String name, String description, BigDecimal price, Integer stock, String category) {
-        super(name, description, price, stock, category);
+    public Product(String name, String description, BigDecimal price, String category) {
+        super(name, description, price, category);
     }
 }

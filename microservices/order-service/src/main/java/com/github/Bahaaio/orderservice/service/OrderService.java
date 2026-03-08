@@ -64,8 +64,8 @@ public class OrderService {
             throw new RuntimeException("Product service unavailable");
         }
 
-        if (product == null || product.getStock() < request.getQuantity()) {
-            throw new RuntimeException("Insufficient stock for product: " + request.getProductId());
+        if (product == null) {
+            throw new RuntimeException("Product not found: " + request.getProductId());
         }
 
         BigDecimal totalPrice = product.getPrice().multiply(BigDecimal.valueOf(request.getQuantity()));
