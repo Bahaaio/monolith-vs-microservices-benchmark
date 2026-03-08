@@ -1,0 +1,26 @@
+# DB-only Compose for local development
+# Usage: docker compose up -d
+# Then run the monolith from your IDE or via: mvn spring-boot:run
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: monolith-dev-db
+    environment:
+      POSTGRES_DB: benchmarkdb
+      POSTGRES_USER: benchmark
+      POSTGRES_PASSWORD: benchmark
+    ports:
+      - "5432:5432"
+    volumes:
+      - ../db/sql:/sql:ro
+      - ../db/docker-init/monolith:/docker-entrypoint-initdb.d:ro
+      - pgdata-monolith-dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U benchmark -d benchmarkdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata-monolith-dev:

@@ -1,0 +1,71 @@
+# DB-only Compose for local development
+# Usage: docker compose up -d
+# Then run each service from your IDE or via: mvn spring-boot:run
+#
+# Host port mapping:
+#   user-db:    localhost:5432
+#   product-db: localhost:5433
+#   order-db:   localhost:5434
+
+services:
+  user-db:
+    image: postgres:15-alpine
+    container_name: user-dev-db
+    environment:
+      POSTGRES_DB: userdb
+      POSTGRES_USER: benchmark
+      POSTGRES_PASSWORD: benchmark
+    ports:
+      - "5432:5432"
+    volumes:
+      - ../db/sql:/sql:ro
+      - ../db/docker-init/user-db:/docker-entrypoint-initdb.d:ro
+      - pgdata-user-dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U benchmark -d userdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  product-db:
+    image: postgres:15-alpine
+    container_name: product-dev-db
+    environment:
+      POSTGRES_DB: productdb
+      POSTGRES_USER: benchmark
+      POSTGRES_PASSWORD: benchmark
+    ports:
+      - "5433:5432"
+    volumes:
+      - ../db/sql:/sql:ro
+      - ../db/docker-init/product-db:/docker-entrypoint-initdb.d:ro
+      - pgdata-product-dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U benchmark -d productdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  order-db:
+    image: postgres:15-alpine
+    container_name: order-dev-db
+    environment:
+      POSTGRES_DB: orderdb
+      POSTGRES_USER: benchmark
+      POSTGRES_PASSWORD: benchmark
+    ports:
+      - "5434:5432"
+    volumes:
+      - ../db/sql:/sql:ro
+      - ../db/docker-init/order-db:/docker-entrypoint-initdb.d:ro
+      - pgdata-order-dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U benchmark -d orderdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata-user-dev:
+  pgdata-product-dev:
+  pgdata-order-dev:
