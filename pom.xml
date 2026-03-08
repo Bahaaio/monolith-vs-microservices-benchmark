@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.github.Bahaaio</groupId>
+    <artifactId>benchmark-parent</artifactId>
+    <version>1.0.0</version>
+    <packaging>pom</packaging>
+    <name>Monolith vs Microservices Benchmark</name>
+    <description>Aggregator POM — builds all modules in dependency order</description>
+
+    <modules>
+        <module>shared-lib</module>
+        <module>monolith</module>
+        <module>microservices/user-service</module>
+        <module>microservices/product-service</module>
+        <module>microservices/order-service</module>
+        <module>microservices/gateway</module>
+    </modules>
+</project>
