@@ -2,9 +2,9 @@
 #set par(justify: true)
 #set heading(numbering: "1.")
 
-#let title = "Microservices vs Monolithic architectures: Performance, resilience, and cost analysis"
-#let authors = "Ahmed Loay, Bahaa El Deen Mohamed, Youssef Khaled"
-#let institution = "SAMS"
+#let title = "A Comparative Analysis of Monolithic and Microservices Architectures: Evaluating Fault Isolation and Database Resource Contention through Experimental Stress Testing"
+#let authors = "Ahmad Louay, Bahaa El Deen Mohamed, Youssef Khaled"
+#let institution = "Sadat Academy for Management Sciences"
 
 #align(center)[
   #text(18pt, weight: "bold")[#title]
@@ -19,21 +19,17 @@
 #v(1em)
 
 = Abstract
-
-This paper compares monolithic and microservices architectures by testing
-two applications with the same business logic focusing on performance, resilience, and cost.
+As of 2026, microservices have become the architectural standard for large-scale organizations, with adoption rates exceeding 85% among enterprise-level firms.
+Despite this prevalence, the transition from monolithic to microservices architectures often introduces hidden complexities regarding infrastructure costs and data-tier bottlenecks. 
+This paper presents a comparative analysis of monolithic and microservices architectures by implementing two applications with identical business logic. 
+The research focuses on three critical dimensions: performance under peak load, fault isolation (resilience), and the "Database Connection Exhaustion" phenomenon. 
+Through rigorous experimental stress testing, this study evaluates system behavior during simulated service failures and quantifies database resource contention. 
+Preliminary findings suggest that while microservices offer superior fault isolation, they impose a significant "infrastructure tax" through connection sprawl, requiring higher-tier database resources compared to the monolithic model.
 
 = Introduction
-
-With the increase in need for web services, they must be able to serve users simultaneously,
-creating demand for architectures that are able to handle heavy workloads.
-Historically, developers have always relied on the monolithic architecture,
-which combines all software components, and deploys them as a single unit.
-On the other hand, the microservices architecture structures and deploys the application
-as a collection of small, independent services, has been gaining popularity as a modern solution
-to address these growing demands.
+While 85% of large organizations have adopted micro-services for their perceived scalability, 
+this research aims to uncover the often-ignored trade-offs in database efficiency and fault recovery that these organizations face during peak stress.
 
 = Conclusion
 
 Both architectures have advantages and disadvantages, all depends on the problem to be solved, with no clear better architecture.
-
