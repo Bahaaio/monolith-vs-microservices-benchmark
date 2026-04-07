@@ -246,7 +246,7 @@ def plot_per_endpoint_comparison(monolith_df: pd.DataFrame, micro_df: pd.DataFra
     combined = pd.concat([mono_ep, micro_ep], ignore_index=True)
 
     # Filter to main endpoints
-    main_endpoints = ["GET /products", "GET /users", "POST /orders"]
+    main_endpoints = ["GET /products/{id}", "GET /users/{id}", "POST /orders"]
     combined = combined[combined["endpoint"].isin(main_endpoints)]
 
     if combined.empty:
@@ -414,40 +414,53 @@ def plot_latency_boxplot(monolith_df: pd.DataFrame, micro_df: pd.DataFrame, outp
 
 
 def plot_endpoint_latency_over_time(monolith_df: pd.DataFrame, micro_df: pd.DataFrame, output_dir: str):
-    """Per-endpoint P95 latency over time — exposes cross-service call bottlenecks."""
-    main_endpoints = ["GET /products", "GET /users", "POST /orders"]
-    endpoint_colors = {"GET /products": "#4CAF50", "GET /users": "#2196F3", "POST /orders": "#FF5722"}
-    endpoint_styles = {"GET /products": "-", "GET /users": "--", "POST /orders": "-."}
-
-    fig, axes = plt.subplots(1, 2, figsize=(18, 7), sharey=True)
-
-    for ax, (label, df) in zip(axes, [("Monolith", monolith_df), ("Microservices", micro_df)]):
+    """Per-endpoint P95 latency over time — merged comparison showing both architectures."""
+    # Get all unique endpoints from both datasets
+    all_endpoints = sorted(set(monolith_df["endpoint"].unique()) | set(micro_df["endpoint"].unique()))
+    
+    # Define colors for different endpoint types (same color for same endpoint across architectures)
+    endpoint_colors = {
+        "GET /products/{id}": "#4CAF50",
+        "GET /products": "#4CAF50",
+        "GET /users/{id}": "#2196F3", 
+        "GET /users": "#2196F3",
+        "POST /orders": "#FF5722",
+    }
+    
+    fig, ax = plt.subplots(figsize=(14, 7))
+    
+    for label, df, linestyle, alpha in [("Monolith", monolith_df, "-", 0.9), 
+                                         ("Microservices", micro_df, "--", 0.8)]:
         df_copy = df.copy()
         df_copy["second"] = ((df_copy["timeStamp"] - df_copy["timeStamp"].min()) / 1000).astype(int)
         df_copy["bucket"] = (df_copy["second"] // 10) * 10
-
-        for endpoint in main_endpoints:
+        
+        for endpoint in all_endpoints:
             ep_data = df_copy[df_copy["endpoint"] == endpoint]
             if ep_data.empty:
                 continue
-
+            
             p95_over_time = ep_data.groupby("bucket")["elapsed"].quantile(0.95)
+            
+            # Get color for this endpoint (default to gray if not in map)
+            color = endpoint_colors.get(endpoint, "gray")
+            
             ax.plot(
                 p95_over_time.index,
                 p95_over_time.values,
-                label=endpoint,
-                color=endpoint_colors.get(endpoint, "gray"),
-                linestyle=endpoint_styles.get(endpoint, "-"),
-                alpha=0.85,
-                linewidth=1.8,
+                label=f"{endpoint} ({label})",
+                color=color,
+                linestyle=linestyle,
+                alpha=alpha,
+                linewidth=2.2,
             )
-
-        ax.set_title(f"{label}")
-        ax.set_xlabel("Time (seconds)")
-        ax.legend(loc="upper right")
-
-    axes[0].set_ylabel("P95 Latency (ms)")
-    plt.suptitle("Per-Endpoint P95 Latency Over Time (10s buckets)", fontsize=15, y=1.02)
+    
+    ax.set_xlabel("Time (seconds)")
+    ax.set_ylabel("P95 Latency (ms)")
+    ax.set_title("Per-Endpoint P95 Latency Over Time (10s buckets)")
+    ax.legend(loc="best", fontsize=9, ncol=2)
+    ax.grid(True, alpha=0.3)
+    
     plt.tight_layout()
     plt.savefig(os.path.join(output_dir, "endpoint_latency_over_time.png"), bbox_inches="tight")
     plt.close()
