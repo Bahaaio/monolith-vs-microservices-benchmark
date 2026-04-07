@@ -30,7 +30,7 @@ else
   info "Created .venv at $VENV_DIR"
 fi
 
-"$VENV_DIR/bin/pip" install -r "$PROJECT_DIR/python/requirements.txt"
+"$VENV_DIR/bin/pip" install -r "$PROJECT_DIR/python/requirements.txt" --quiet
 
 info "Python dependencies installed."
 
@@ -44,7 +44,7 @@ if ! command -v mvn &>/dev/null; then
   exit 1
 fi
 
-mvn -f "$PROJECT_DIR/shared-lib/pom.xml" install -DskipTests
+mvn -f "$PROJECT_DIR/shared-lib/pom.xml" install --quiet -DskipTests
 
 info "shared-lib installed to ~/.m2/repository"
 

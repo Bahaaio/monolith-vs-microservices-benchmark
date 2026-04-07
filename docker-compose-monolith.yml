@@ -40,14 +40,14 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
-      interval: 10s
+      interval: 5s
       timeout: 5s
       retries: 10
       start_period: 30s
     deploy:
       resources:
         limits:
-          cpus: '2.0'
+          cpus: "2.0"
           memory: 768M
 
 volumes:
