@@ -62,7 +62,7 @@ cleanup() {
   docker compose -f "$PROJECT_DIR/docker-compose-microservices.yml" down -v 2>/dev/null || true
 }
 
-trap cleanup EXIT
+trap cleanup INT TERM
 
 # ---------------------------------------------------------------------------
 # Pre-flight: check required tools
@@ -93,26 +93,26 @@ setup() {
   mkdir -p "$RUN_DIR"
 
   info "Setting up Python environment with uv..."
-  uv sync --quiet
+  uv sync --directory "$PROJECT_DIR/python" --quiet
 
   info "Installing shared-lib into local Maven repository..."
   mvn -f "$PROJECT_DIR/shared-lib/pom.xml" install --quiet -DskipTests
 }
 
 print_header() {
-  echo ""
-  echo "============================================"
-  echo "  Monolith vs Microservices Experiment"
-  echo "============================================"
-  echo "  Threads:    $THREADS"
-  echo "  Duration:   ${DURATION}s"
-  echo "  Warmup:     ${WARMUP}s"
-  echo "  Ramp-up:    ${RAMP_UP}s"
-  echo "  Cool-down:  ${COOL_DOWN}s"
-  echo "  Run ID:     $TIMESTAMP"
-  echo "  Output:     $RUN_DIR"
-  echo "============================================"
-  echo ""
+  info ""
+  info "============================================"
+  info "  Monolith vs Microservices Experiment"
+  info "============================================"
+  info "  Threads:    $THREADS"
+  info "  Duration:   ${DURATION}s"
+  info "  Warmup:     ${WARMUP}s"
+  info "  Ramp-up:    ${RAMP_UP}s"
+  info "  Cool-down:  ${COOL_DOWN}s"
+  info "  Run ID:     $TIMESTAMP"
+  info "  Output:     $RUN_DIR"
+  info "============================================"
+  info ""
 }
 
 # ---------------------------------------------------------------------------
@@ -126,7 +126,6 @@ run_jmeter() {
   local log_file="$RUN_DIR/${arch}.log"
 
   info "Running JMeter for $arch -> $host:$port"
-  info "  Threads=$THREADS, Duration=${DURATION}s, Warmup=${WARMUP}s"
 
   jmeter -n \
     -t "$PROJECT_DIR/jmeter/benchmark.jmx" \
@@ -200,7 +199,8 @@ analyze_results() {
   info "Monolith results:       $mono_file"
   info "Microservices results:  $micro_file"
 
-  uv run python "$PROJECT_DIR/python/visualize.py" \
+  uv run --directory "$PROJECT_DIR/python" \
+    python visualize.py \
     --monolith "$mono_file" \
     --microservices "$micro_file" \
     --warmup "$warmup" \
@@ -266,7 +266,7 @@ main() {
 
   analyze_results "$RUN_DIR" "$WARMUP"
 
-  echo ""
+  info ""
   info "============================================"
   info "  Experiment Complete!"
   info "============================================"
