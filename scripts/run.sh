@@ -1,17 +1,9 @@
 #!/usr/bin/env bash
 # =============================================================================
-# run_experiment.sh - Run the full benchmark experiment (local tooling)
+# run.sh - Run the full benchmark experiment
 # =============================================================================
 # Builds Docker containers, benchmarks monolith then microservices
 # sequentially, then runs analysis and generates charts.
-#
-# Requirements (host):
-#   - docker / docker compose   (application containers only)
-#   - jmeter (via sdkman or JMETER_HOME)
-#   - python3 (or .venv/bin/python)
-#
-# Usage:
-#   ./scripts/run_experiment.sh
 #
 # Options (env vars):
 #   THREADS=50         Concurrent threads (default: 50)
@@ -21,81 +13,107 @@
 #   COOL_DOWN=15       Cool-down time between tests in seconds (default: 15)
 # =============================================================================
 
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
+set -euo pipefail
 
+# ---------------------------------------------------------------------------
+# Configuration and constants
+# ---------------------------------------------------------------------------
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+TIMESTAMP=$(date +%Y-%m-%d_%H-%M-%S)
+RESULTS_DIR="$PROJECT_DIR/results"
+RUN_DIR="$RESULTS_DIR/$TIMESTAMP"
+
+# required tools
+NEEDED=("docker" "jmeter" "uv")
+
+# parameters with defaults
 THREADS="${THREADS:-50}"
 DURATION="${DURATION:-60}"
 WARMUP="${WARMUP:-15}"
 RAMP_UP="${RAMP_UP:-5}"
 COOL_DOWN="${COOL_DOWN:-15}"
 
-# Create timestamped run directory
-RUN_DIR="$RESULTS_DIR/$TIMESTAMP"
-mkdir -p "$RUN_DIR"
+# ---------------------------------------------------------------------------
+# Utility functions
+# ---------------------------------------------------------------------------
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m'
 
-# ---------------------------------------------------------------------------
-# Ensure setup is done (idempotent — fast if already set up)
-# ---------------------------------------------------------------------------
-info "Running setup (idempotent)..."
-"$SCRIPT_DIR/setup.sh"
+info() { echo -e "${GREEN}[INFO]${NC} $*"; }
+warn() { echo -e "${YELLOW}[WARN]${NC} $*"; }
+error() { echo -e "${RED}[ERROR]${NC} $*"; }
+step() { echo -e "${BLUE}[STEP]${NC} $*"; }
 
 # ---------------------------------------------------------------------------
 # Cleanup trap — tear down any running containers on unexpected exit
 # ---------------------------------------------------------------------------
-CURRENT_ARCH=""
 
-cleanup_on_exit() {
-  if [[ -n "$CURRENT_ARCH" ]]; then
-    warn "Script interrupted. Cleaning up..."
-    "$SCRIPT_DIR/cleanup.sh" "$CURRENT_ARCH"
-  fi
+cleanup() {
+  warn "Script interrupted. Cleaning up..."
+
+  info "Stopping monolith containers..."
+  docker compose -f "$PROJECT_DIR/docker-compose-monolith.yml" down -v 2>/dev/null || true
+
+  info "Stopping microservices containers..."
+  docker compose -f "$PROJECT_DIR/docker-compose-microservices.yml" down -v 2>/dev/null || true
 }
 
-trap cleanup_on_exit EXIT
+trap cleanup EXIT
 
 # ---------------------------------------------------------------------------
 # Pre-flight: check required tools
 # ---------------------------------------------------------------------------
-MISSING=()
 
-if ! command -v docker &>/dev/null; then
-  MISSING+=("docker")
-fi
+check_dependencies() {
+  MISSING=()
 
-if ! detect_jmeter; then
-  MISSING+=("jmeter")
-fi
+  for tool in "${NEEDED[@]}"; do
+    if ! command -v "$tool" &>/dev/null; then
+      MISSING+=("$tool")
+    fi
+  done
 
-if ! detect_python; then
-  MISSING+=("python3")
-fi
+  if [[ ${#MISSING[@]} -gt 0 ]]; then
+    error "Missing required tools: ${MISSING[*]}"
+    exit 1
+  fi
 
-if [[ ${#MISSING[@]} -gt 0 ]]; then
-  error "Missing required tools: ${MISSING[*]}"
-  info "Run ./scripts/setup.sh first, or install the missing tools."
-  exit 1
-fi
+  if ! docker info &>/dev/null; then
+    error "Docker daemon is not running."
+    exit 1
+  fi
+}
 
-if ! docker info &>/dev/null; then
-  error "Docker daemon is not running."
-  exit 1
-fi
+setup() {
+  mkdir -p "$RESULTS_DIR"
+  mkdir -p "$RUN_DIR"
 
-echo ""
-echo "============================================"
-echo "  Monolith vs Microservices Experiment"
-echo "============================================"
-echo "  Threads:    $THREADS"
-echo "  Duration:   ${DURATION}s"
-echo "  Warmup:     ${WARMUP}s"
-echo "  Ramp-up:    ${RAMP_UP}s"
-echo "  Cool-down:  ${COOL_DOWN}s"
-echo "  Run ID:     $TIMESTAMP"
-echo "  Output:     $RUN_DIR"
-echo "  JMeter:     ${JMETER:-N/A}"
-echo "  Python:     $PYTHON"
-echo "============================================"
-echo ""
+  info "Setting up Python environment with uv..."
+  uv sync --quiet
+
+  info "Installing shared-lib into local Maven repository..."
+  mvn -f "$PROJECT_DIR/shared-lib/pom.xml" install --quiet -DskipTests
+}
+
+print_header() {
+  echo ""
+  echo "============================================"
+  echo "  Monolith vs Microservices Experiment"
+  echo "============================================"
+  echo "  Threads:    $THREADS"
+  echo "  Duration:   ${DURATION}s"
+  echo "  Warmup:     ${WARMUP}s"
+  echo "  Ramp-up:    ${RAMP_UP}s"
+  echo "  Cool-down:  ${COOL_DOWN}s"
+  echo "  Run ID:     $TIMESTAMP"
+  echo "  Output:     $RUN_DIR"
+  echo "============================================"
+  echo ""
+}
 
 # ---------------------------------------------------------------------------
 # Helper: run JMeter
@@ -110,7 +128,7 @@ run_jmeter() {
   info "Running JMeter for $arch -> $host:$port"
   info "  Threads=$THREADS, Duration=${DURATION}s, Warmup=${WARMUP}s"
 
-  "$JMETER" -n \
+  jmeter -n \
     -t "$PROJECT_DIR/jmeter/benchmark.jmx" \
     -l "$output_file" \
     -j "$log_file" \
@@ -139,7 +157,57 @@ run_jmeter() {
   # Generate JMeter HTML dashboard
   local html_report_dir="$RUN_DIR/${arch}_report"
   info "Generating JMeter HTML report -> $html_report_dir"
-  "$JMETER" -g "$output_file" -o "$html_report_dir" || warn "HTML report generation failed (non-fatal)"
+  jmeter -g "$output_file" -o "$html_report_dir" || warn "HTML report generation failed (non-fatal)"
+}
+
+# Analyze results and generate charts using the Python visualization script.
+#
+# Args:
+#   run_dir:         Path to the timestamped run directory
+#   warmup_seconds:  Number of warmup seconds to discard (default: 0)
+#
+# Expects:
+#   $run_dir/monolith.jtl
+#   $run_dir/microservices.jtl
+#
+analyze_results() {
+  local run_dir="$1"
+  local warmup="${2:-0}"
+
+  if [[ ! -d "$run_dir" ]]; then
+    error "Run directory not found: $run_dir"
+    return 1
+  fi
+
+  local mono_file="$run_dir/monolith.jtl"
+  local micro_file="$run_dir/microservices.jtl"
+  local output_dir="$run_dir/charts"
+
+  step "Running analysis and generating charts..."
+
+  # Both files must exist
+  if [[ ! -f "$mono_file" ]]; then
+    error "Missing monolith results: $mono_file"
+    return 1
+  fi
+
+  if [[ ! -f "$micro_file" ]]; then
+    error "Missing microservices results: $micro_file"
+    return 1
+  fi
+
+  # Both files exist — run comparison
+  info "Monolith results:       $mono_file"
+  info "Microservices results:  $micro_file"
+
+  uv run python "$PROJECT_DIR/python/visualize.py" \
+    --monolith "$mono_file" \
+    --microservices "$micro_file" \
+    --warmup "$warmup" \
+    --output "$output_dir" \
+    --results-dir "$run_dir"
+
+  info "Charts saved to: $output_dir/"
 }
 
 # ---------------------------------------------------------------------------
@@ -148,23 +216,17 @@ run_jmeter() {
 test_monolith() {
   step "===== Testing MONOLITH architecture ====="
 
-  CURRENT_ARCH="monolith"
-
   # Stop any previous runs
   docker compose -f "$PROJECT_DIR/docker-compose-monolith.yml" down -v 2>/dev/null || true
 
-  # Build, start, and wait for healthchecks
   step "1/3 Building and starting monolith (waiting for healthchecks)..."
   docker compose -f "$PROJECT_DIR/docker-compose-monolith.yml" up --build --wait
 
-  # Run benchmark
   step "2/3 Running benchmark..."
   run_jmeter "monolith" "localhost" "8080"
 
-  # Stop
   step "3/3 Stopping monolith..."
   docker compose -f "$PROJECT_DIR/docker-compose-monolith.yml" down -v
-  CURRENT_ARCH=""
 
   info "Monolith test complete."
 }
@@ -175,41 +237,43 @@ test_monolith() {
 test_microservices() {
   step "===== Testing MICROSERVICES architecture ====="
 
-  CURRENT_ARCH="microservices"
-
   # Stop any previous runs
   docker compose -f "$PROJECT_DIR/docker-compose-microservices.yml" down -v 2>/dev/null || true
 
-  # Build, start, and wait for healthchecks
   step "1/3 Building and starting microservices (waiting for healthchecks)..."
   docker compose -f "$PROJECT_DIR/docker-compose-microservices.yml" up --build --wait
 
-  # Run benchmark against gateway (port 8080 — same as monolith for fair comparison)
   step "2/3 Running benchmark..."
   run_jmeter "microservices" "localhost" "8080"
 
-  # Stop
   step "3/3 Stopping microservices..."
   docker compose -f "$PROJECT_DIR/docker-compose-microservices.yml" down -v
-  CURRENT_ARCH=""
 
   info "Microservices test complete."
 }
 
-# ---------------------------------------------------------------------------
-# Main: run monolith, then microservices, then analysis
-# ---------------------------------------------------------------------------
-test_monolith
-info "Cooling down for $COOL_DOWN seconds before next test..."
-sleep "$COOL_DOWN"
-test_microservices
-analyze_results "$RUN_DIR" "$WARMUP"
+main() {
+  check_dependencies
+  setup
+  print_header
 
-echo ""
-info "============================================"
-info "  Experiment Complete!"
-info "============================================"
-info "  Run ID:   $TIMESTAMP"
-info "  Results:  $RUN_DIR/"
-info "  Charts:   $RUN_DIR/charts/"
-info "============================================"
+  test_monolith
+
+  info "Cooling down for $COOL_DOWN seconds..."
+  sleep "$COOL_DOWN"
+
+  test_microservices
+
+  analyze_results "$RUN_DIR" "$WARMUP"
+
+  echo ""
+  info "============================================"
+  info "  Experiment Complete!"
+  info "============================================"
+  info "  Run ID:   $TIMESTAMP"
+  info "  Results:  $RUN_DIR/"
+  info "  Charts:   $RUN_DIR/charts/"
+  info "============================================"
+}
+
+main "$@"
