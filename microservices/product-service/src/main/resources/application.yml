@@ -25,3 +25,9 @@ logging:
   level:
     root: WARN
     com.github.Bahaaio: INFO
+
+chaos:
+  enabled: ${CHAOS_ENABLED:false}
+  mode: ${CHAOS_MODE:none}
+  fault-percent: ${CHAOS_FAULT_PERCENT:0}
+  latency-ms: ${CHAOS_LATENCY_MS:0}

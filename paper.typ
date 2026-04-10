@@ -20,14 +20,16 @@
 #v(1em)
 
 = Abstract
+
 As of 2026, microservices have become the architectural standard for large-scale organizations, with adoption rates exceeding 85% among enterprise-level firms.
-Despite this prevalence, the transition from monolithic to microservices architectures often introduces hidden complexities regarding infrastructure costs and data-tier bottlenecks. 
-This paper presents a comparative analysis of monolithic and microservices architectures by implementing two applications with identical business logic. 
-The research focuses on three critical dimensions: performance under peak load, fault isolation (resilience), and the "Database Connection Exhaustion" phenomenon. 
-Through rigorous experimental stress testing, this study evaluates system behavior during simulated service failures and quantifies database resource contention. 
+Despite this prevalence, the transition from monolithic to microservices architectures often introduces hidden complexities regarding infrastructure costs and data-tier bottlenecks.
+This paper presents a comparative analysis of monolithic and microservices architectures by implementing two applications with identical business logic.
+The research focuses on three critical dimensions: performance under peak load, fault isolation (resilience), and the "Database Connection Exhaustion" phenomenon.
+Through rigorous experimental stress testing, this study evaluates system behavior during simulated service failures and quantifies database resource contention.
 Preliminary findings suggest that while microservices offer superior fault isolation, they impose a significant "infrastructure tax" through connection sprawl, requiring higher-tier database resources compared to the monolithic model.
 
-= Introduction <intro>
+= Introduction
+
 The term “monolith” implies something large and glacial, which perfectly implies the truth of a monolith architecture for software design, as it has one codebase which makes it easier to: deployment, tracing, , local testing and it has a better performance than microservices at most cases #link("https://www.atlassian.com/microservices/microservices-architecture/microservices-vs-monolith")[\[1\]].
 This advantages makes monolithic architecture a very reasonable choice for basic projects or startups as it also easy to learn , cheap and requires less technical knowledge to use. On the other hand adapting to microservices can be complex and costly and needs deeper domain knowledge, as discussed in Section 5 (p. 772) #link("https://www.sciencedirect.com/science/article/pii/S1877050926006411")[\[2\]].
 But every rose has its thorn, monolithic can be a bad choice in the long term as it can be difficult to adapt to new technologies because its tightly coupled and usually the monolithic application must be retooled completely to accept the new addition, in addition to that scalability is a big drawback in Monolithic applications as you may have to rebuild the system to expand its scale#link("https://www.volitioncapital.com/news/microservices-software-architecture/")[\[3\]].
@@ -70,6 +72,8 @@ Fault Injection Design
 
 To evaluate system resilience beyond steady-state performance, we introduce controlled fault injection scenarios. These faults are deterministic and reproducible, allowing systematic comparison between architectures.
 
+Fault and latency injection are implemented at the same logical point in both systems: the read path of #raw("GET /products/{id}"). The mechanism is parameterized via application properties (overridden through environment variables during experiments): #raw("chaos.enabled"), #raw("chaos.mode"), #raw("chaos.fault-percent"), and #raw("chaos.latency-ms").
+
 1. Connection Pool Exhaustion
 
 Connection pool exhaustion is simulated by increasing the number of concurrent requests while keeping the database connection pool size fixed. This creates contention for database connections, leading to queueing delays and potential request failures.
@@ -88,6 +92,8 @@ To simulate runtime failures, controlled exceptions are injected into specific c
 
 Failures are injected probabilistically (e.g., a fixed percentage of requests), ensuring consistent behavior across runs.
 
+To preserve reproducibility, failure selection is deterministic rather than random: for a product ID $id$, a fault is injected when $id mod 100 < p$, where $p$ is the configured fault percentage. This guarantees identical fault placement across repeated runs and across both architectures.
+
 This experiment evaluates:
 
 how failures propagate across system components
@@ -99,6 +105,8 @@ In microservices, failures may remain localized or propagate through inter-servi
 3. Artificial Latency Injection
 
 In addition to hard failures, we simulate performance degradation by introducing artificial delays (e.g., thread sleep) in selected components. This models real-world scenarios such as slow database queries or network latency.
+
+Latency injection uses a fixed delay value configured through #raw("chaos.latency-ms") and applied on every request to #raw("GET /products/{id}") while #raw("chaos.mode=latency") is active.
 
 This experiment focuses on:
 
