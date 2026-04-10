@@ -6,14 +6,12 @@ Parses JMeter .jtl result files and generates comparison charts
 for monolith vs microservices architectures.
 
 Usage:
-    python visualize.py --monolith results/monolith.jtl --microservices results/microservices.jtl
-    python visualize.py --monolith results/monolith.jtl --microservices results/microservices.jtl --output results/charts
-    python visualize.py --single results/monolith.jtl --label "Monolith t3.small"
+    python visualize.py --experiment-dir results/2026-04-10_12-34-56
+    python visualize.py --experiment-dir results/2026-04-10_12-34-56 --output results/2026-04-10_12-34-56/charts
 """
 
 import argparse
 import os
-import sys
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -24,13 +22,15 @@ import seaborn as sns
 
 # Consistent styling
 sns.set_theme(style="whitegrid")
-plt.rcParams.update({
-    "figure.figsize": (12, 7),
-    "font.size": 12,
-    "axes.titlesize": 14,
-    "axes.labelsize": 12,
-    "figure.dpi": 150,
-})
+plt.rcParams.update(
+    {
+        "figure.figsize": (12, 7),
+        "font.size": 12,
+        "axes.titlesize": 14,
+        "axes.labelsize": 12,
+        "figure.dpi": 150,
+    }
+)
 
 COLORS = {
     "monolith": "#2196F3",
@@ -49,9 +49,20 @@ def load_jtl(filepath: str, warmup_seconds: int = 0) -> pd.DataFrame:
     df = pd.read_csv(filepath)
 
     # Standard JTL column names
-    expected_cols = ["timeStamp", "elapsed", "label", "responseCode", "success",
-                     "bytes", "sentBytes", "grpThreads", "allThreads",
-                     "Latency", "IdleTime", "Connect"]
+    expected_cols = [
+        "timeStamp",
+        "elapsed",
+        "label",
+        "responseCode",
+        "success",
+        "bytes",
+        "sentBytes",
+        "grpThreads",
+        "allThreads",
+        "Latency",
+        "IdleTime",
+        "Connect",
+    ]
 
     # Normalize column names (JMeter sometimes uses different casing)
     col_map = {c.lower(): c for c in expected_cols}
@@ -75,8 +86,10 @@ def load_jtl(filepath: str, warmup_seconds: int = 0) -> pd.DataFrame:
         cutoff = min_ts + warmup_seconds * 1000
         before = len(df)
         df = df[df["timeStamp"] >= cutoff].reset_index(drop=True)
-        print(f"  Warmup filter: discarded {before - len(df):,} samples "
-              f"(first {warmup_seconds}s), kept {len(df):,}")
+        print(
+            f"  Warmup filter: discarded {before - len(df):,} samples "
+            f"(first {warmup_seconds}s), kept {len(df):,}"
+        )
 
     return df
 
@@ -89,7 +102,9 @@ def compute_metrics(df: pd.DataFrame) -> dict:
     metrics = {
         "total_requests": total_requests,
         "duration_seconds": round(duration_s, 2),
-        "throughput_rps": round(total_requests / duration_s, 2) if duration_s > 0 else 0,
+        "throughput_rps": round(total_requests / duration_s, 2)
+        if duration_s > 0
+        else 0,
         "avg_latency_ms": round(df["elapsed"].mean(), 2),
         "median_latency_ms": round(df["elapsed"].median(), 2),
         "p90_latency_ms": round(df["elapsed"].quantile(0.90), 2),
@@ -117,9 +132,9 @@ def compute_per_endpoint_metrics(df: pd.DataFrame) -> pd.DataFrame:
 
 def print_summary(label: str, metrics: dict):
     """Pretty-print summary metrics."""
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"  {label}")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print(f"  Total Requests:    {metrics['total_requests']:,}")
     print(f"  Duration:          {metrics['duration_seconds']:.1f}s")
     print(f"  Throughput:        {metrics['throughput_rps']:.2f} req/s")
@@ -131,10 +146,12 @@ def print_summary(label: str, metrics: dict):
     print(f"  Max Latency:       {metrics['max_latency_ms']:.2f} ms")
     print(f"  Error Rate:        {metrics['error_rate_pct']:.4f}%")
     print(f"  Errors:            {metrics['error_count']:,}")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
 
-def plot_latency_comparison(monolith_df: pd.DataFrame, micro_df: pd.DataFrame, output_dir: str):
+def plot_latency_comparison(
+    monolith_df: pd.DataFrame, micro_df: pd.DataFrame, output_dir: str
+):
     """Bar chart comparing latency percentiles between architectures."""
     mono_m = compute_metrics(monolith_df)
     micro_m = compute_metrics(micro_df)
@@ -148,8 +165,16 @@ def plot_latency_comparison(monolith_df: pd.DataFrame, micro_df: pd.DataFrame, o
     width = 0.35
 
     fig, ax = plt.subplots()
-    bars1 = ax.bar(x - width / 2, mono_vals, width, label="Monolith", color=COLORS["monolith"])
-    bars2 = ax.bar(x + width / 2, micro_vals, width, label="Microservices", color=COLORS["microservices"])
+    bars1 = ax.bar(
+        x - width / 2, mono_vals, width, label="Monolith", color=COLORS["monolith"]
+    )
+    bars2 = ax.bar(
+        x + width / 2,
+        micro_vals,
+        width,
+        label="Microservices",
+        color=COLORS["microservices"],
+    )
 
     ax.set_ylabel("Latency (ms)")
     ax.set_title("Response Latency Comparison")
@@ -159,11 +184,23 @@ def plot_latency_comparison(monolith_df: pd.DataFrame, micro_df: pd.DataFrame, o
 
     # Add value labels on bars
     for bar in bars1:
-        ax.text(bar.get_x() + bar.get_width() / 2., bar.get_height(),
-                f"{bar.get_height():.1f}", ha="center", va="bottom", fontsize=9)
+        ax.text(
+            bar.get_x() + bar.get_width() / 2.0,
+            bar.get_height(),
+            f"{bar.get_height():.1f}",
+            ha="center",
+            va="bottom",
+            fontsize=9,
+        )
     for bar in bars2:
-        ax.text(bar.get_x() + bar.get_width() / 2., bar.get_height(),
-                f"{bar.get_height():.1f}", ha="center", va="bottom", fontsize=9)
+        ax.text(
+            bar.get_x() + bar.get_width() / 2.0,
+            bar.get_height(),
+            f"{bar.get_height():.1f}",
+            ha="center",
+            va="bottom",
+            fontsize=9,
+        )
 
     plt.tight_layout()
     plt.savefig(os.path.join(output_dir, "latency_comparison.png"))
@@ -171,7 +208,9 @@ def plot_latency_comparison(monolith_df: pd.DataFrame, micro_df: pd.DataFrame, o
     print(f"  Saved: latency_comparison.png")
 
 
-def plot_latency_distribution(monolith_df: pd.DataFrame, micro_df: pd.DataFrame, output_dir: str):
+def plot_latency_distribution(
+    monolith_df: pd.DataFrame, micro_df: pd.DataFrame, output_dir: str
+):
     """Histogram/KDE of response times for both architectures."""
     fig, axes = plt.subplots(1, 2, figsize=(16, 7))
 
@@ -179,44 +218,78 @@ def plot_latency_distribution(monolith_df: pd.DataFrame, micro_df: pd.DataFrame,
     mono_cap = monolith_df["elapsed"].quantile(0.99)
     micro_cap = micro_df["elapsed"].quantile(0.99)
 
-    axes[0].hist(monolith_df["elapsed"][monolith_df["elapsed"] <= mono_cap],
-                 bins=100, color=COLORS["monolith"], alpha=0.7, edgecolor="white")
+    axes[0].hist(
+        monolith_df["elapsed"][monolith_df["elapsed"] <= mono_cap],
+        bins=100,
+        color=COLORS["monolith"],
+        alpha=0.7,
+        edgecolor="white",
+    )
     axes[0].set_title("Monolith - Latency Distribution")
     axes[0].set_xlabel("Response Time (ms)")
     axes[0].set_ylabel("Frequency")
-    axes[0].axvline(monolith_df["elapsed"].median(), color="red", linestyle="--",
-                    label=f'Median: {monolith_df["elapsed"].median():.0f}ms')
-    axes[0].axvline(monolith_df["elapsed"].quantile(0.95), color="orange", linestyle="--",
-                    label=f'P95: {monolith_df["elapsed"].quantile(0.95):.0f}ms')
+    axes[0].axvline(
+        monolith_df["elapsed"].median(),
+        color="red",
+        linestyle="--",
+        label=f"Median: {monolith_df['elapsed'].median():.0f}ms",
+    )
+    axes[0].axvline(
+        monolith_df["elapsed"].quantile(0.95),
+        color="orange",
+        linestyle="--",
+        label=f"P95: {monolith_df['elapsed'].quantile(0.95):.0f}ms",
+    )
     axes[0].legend()
 
-    axes[1].hist(micro_df["elapsed"][micro_df["elapsed"] <= micro_cap],
-                 bins=100, color=COLORS["microservices"], alpha=0.7, edgecolor="white")
+    axes[1].hist(
+        micro_df["elapsed"][micro_df["elapsed"] <= micro_cap],
+        bins=100,
+        color=COLORS["microservices"],
+        alpha=0.7,
+        edgecolor="white",
+    )
     axes[1].set_title("Microservices - Latency Distribution")
     axes[1].set_xlabel("Response Time (ms)")
     axes[1].set_ylabel("Frequency")
-    axes[1].axvline(micro_df["elapsed"].median(), color="red", linestyle="--",
-                    label=f'Median: {micro_df["elapsed"].median():.0f}ms')
-    axes[1].axvline(micro_df["elapsed"].quantile(0.95), color="orange", linestyle="--",
-                    label=f'P95: {micro_df["elapsed"].quantile(0.95):.0f}ms')
+    axes[1].axvline(
+        micro_df["elapsed"].median(),
+        color="red",
+        linestyle="--",
+        label=f"Median: {micro_df['elapsed'].median():.0f}ms",
+    )
+    axes[1].axvline(
+        micro_df["elapsed"].quantile(0.95),
+        color="orange",
+        linestyle="--",
+        label=f"P95: {micro_df['elapsed'].quantile(0.95):.0f}ms",
+    )
     axes[1].legend()
 
     plt.suptitle("Response Time Distribution", fontsize=16, y=1.02)
     plt.tight_layout()
-    plt.savefig(os.path.join(output_dir, "latency_distribution.png"), bbox_inches="tight")
+    plt.savefig(
+        os.path.join(output_dir, "latency_distribution.png"), bbox_inches="tight"
+    )
     plt.close()
     print(f"  Saved: latency_distribution.png")
 
 
-def plot_throughput_over_time(monolith_df: pd.DataFrame, micro_df: pd.DataFrame, output_dir: str):
+def plot_throughput_over_time(
+    monolith_df: pd.DataFrame, micro_df: pd.DataFrame, output_dir: str
+):
     """Line chart: throughput (req/s) over time for both architectures."""
     fig, ax = plt.subplots()
 
-    for label, df, color in [("Monolith", monolith_df, COLORS["monolith"]),
-                              ("Microservices", micro_df, COLORS["microservices"])]:
+    for label, df, color in [
+        ("Monolith", monolith_df, COLORS["monolith"]),
+        ("Microservices", micro_df, COLORS["microservices"]),
+    ]:
         # Group by second
         df_copy = df.copy()
-        df_copy["second"] = ((df_copy["timeStamp"] - df_copy["timeStamp"].min()) / 1000).astype(int)
+        df_copy["second"] = (
+            (df_copy["timeStamp"] - df_copy["timeStamp"].min()) / 1000
+        ).astype(int)
         throughput = df_copy.groupby("second").size()
 
         # Smooth with rolling average (30s window)
@@ -235,7 +308,9 @@ def plot_throughput_over_time(monolith_df: pd.DataFrame, micro_df: pd.DataFrame,
     print(f"  Saved: throughput_over_time.png")
 
 
-def plot_per_endpoint_comparison(monolith_df: pd.DataFrame, micro_df: pd.DataFrame, output_dir: str):
+def plot_per_endpoint_comparison(
+    monolith_df: pd.DataFrame, micro_df: pd.DataFrame, output_dir: str
+):
     """Compare latency and throughput per endpoint."""
     mono_ep = compute_per_endpoint_metrics(monolith_df)
     micro_ep = compute_per_endpoint_metrics(micro_df)
@@ -256,16 +331,24 @@ def plot_per_endpoint_comparison(monolith_df: pd.DataFrame, micro_df: pd.DataFra
     fig, axes = plt.subplots(1, 2, figsize=(16, 7))
 
     # P95 Latency per endpoint
-    pivot_p95 = combined.pivot(index="endpoint", columns="architecture", values="p95_latency_ms")
-    pivot_p95.plot(kind="bar", ax=axes[0], color=[COLORS["microservices"], COLORS["monolith"]])
+    pivot_p95 = combined.pivot(
+        index="endpoint", columns="architecture", values="p95_latency_ms"
+    )
+    pivot_p95.plot(
+        kind="bar", ax=axes[0], color=[COLORS["microservices"], COLORS["monolith"]]
+    )
     axes[0].set_title("P95 Latency per Endpoint")
     axes[0].set_ylabel("Latency (ms)")
     axes[0].set_xlabel("")
     axes[0].tick_params(axis="x", rotation=0)
 
     # Throughput per endpoint
-    pivot_tps = combined.pivot(index="endpoint", columns="architecture", values="throughput_rps")
-    pivot_tps.plot(kind="bar", ax=axes[1], color=[COLORS["microservices"], COLORS["monolith"]])
+    pivot_tps = combined.pivot(
+        index="endpoint", columns="architecture", values="throughput_rps"
+    )
+    pivot_tps.plot(
+        kind="bar", ax=axes[1], color=[COLORS["microservices"], COLORS["monolith"]]
+    )
     axes[1].set_title("Throughput per Endpoint")
     axes[1].set_ylabel("Requests/sec")
     axes[1].set_xlabel("")
@@ -273,12 +356,16 @@ def plot_per_endpoint_comparison(monolith_df: pd.DataFrame, micro_df: pd.DataFra
 
     plt.suptitle("Per-Endpoint Performance Comparison", fontsize=16, y=1.02)
     plt.tight_layout()
-    plt.savefig(os.path.join(output_dir, "per_endpoint_comparison.png"), bbox_inches="tight")
+    plt.savefig(
+        os.path.join(output_dir, "per_endpoint_comparison.png"), bbox_inches="tight"
+    )
     plt.close()
     print(f"  Saved: per_endpoint_comparison.png")
 
 
-def plot_error_rate_comparison(monolith_df: pd.DataFrame, micro_df: pd.DataFrame, output_dir: str):
+def plot_error_rate_comparison(
+    monolith_df: pd.DataFrame, micro_df: pd.DataFrame, output_dir: str
+):
     """Compare error rates between architectures."""
     mono_m = compute_metrics(monolith_df)
     micro_m = compute_metrics(micro_df)
@@ -292,8 +379,14 @@ def plot_error_rate_comparison(monolith_df: pd.DataFrame, micro_df: pd.DataFrame
     bars = ax.bar(architectures, error_rates, color=colors, width=0.5)
 
     for bar, rate in zip(bars, error_rates):
-        ax.text(bar.get_x() + bar.get_width() / 2., bar.get_height(),
-                f"{rate:.4f}%", ha="center", va="bottom", fontsize=12)
+        ax.text(
+            bar.get_x() + bar.get_width() / 2.0,
+            bar.get_height(),
+            f"{rate:.4f}%",
+            ha="center",
+            va="bottom",
+            fontsize=12,
+        )
 
     ax.set_ylabel("Error Rate (%)")
     ax.set_title("Error Rate Comparison")
@@ -304,20 +397,32 @@ def plot_error_rate_comparison(monolith_df: pd.DataFrame, micro_df: pd.DataFrame
     print(f"  Saved: error_rate_comparison.png")
 
 
-def plot_latency_over_time(monolith_df: pd.DataFrame, micro_df: pd.DataFrame, output_dir: str):
+def plot_latency_over_time(
+    monolith_df: pd.DataFrame, micro_df: pd.DataFrame, output_dir: str
+):
     """P95 latency over time (rolling window)."""
     fig, ax = plt.subplots()
 
-    for label, df, color in [("Monolith", monolith_df, COLORS["monolith"]),
-                              ("Microservices", micro_df, COLORS["microservices"])]:
+    for label, df, color in [
+        ("Monolith", monolith_df, COLORS["monolith"]),
+        ("Microservices", micro_df, COLORS["microservices"]),
+    ]:
         df_copy = df.copy()
-        df_copy["second"] = ((df_copy["timeStamp"] - df_copy["timeStamp"].min()) / 1000).astype(int)
+        df_copy["second"] = (
+            (df_copy["timeStamp"] - df_copy["timeStamp"].min()) / 1000
+        ).astype(int)
 
         # P95 per 10-second bucket
         df_copy["bucket"] = (df_copy["second"] // 10) * 10
         p95_over_time = df_copy.groupby("bucket")["elapsed"].quantile(0.95)
 
-        ax.plot(p95_over_time.index, p95_over_time.values, label=label, color=color, alpha=0.8)
+        ax.plot(
+            p95_over_time.index,
+            p95_over_time.values,
+            label=label,
+            color=color,
+            alpha=0.8,
+        )
 
     ax.set_xlabel("Time (seconds)")
     ax.set_ylabel("P95 Latency (ms)")
@@ -330,7 +435,9 @@ def plot_latency_over_time(monolith_df: pd.DataFrame, micro_df: pd.DataFrame, ou
     print(f"  Saved: latency_over_time.png")
 
 
-def plot_throughput_bar(monolith_df: pd.DataFrame, micro_df: pd.DataFrame, output_dir: str):
+def plot_throughput_bar(
+    monolith_df: pd.DataFrame, micro_df: pd.DataFrame, output_dir: str
+):
     """Simple side-by-side bar chart of total throughput (req/s)."""
     mono_m = compute_metrics(monolith_df)
     micro_m = compute_metrics(micro_df)
@@ -344,8 +451,15 @@ def plot_throughput_bar(monolith_df: pd.DataFrame, micro_df: pd.DataFrame, outpu
     bars = ax.bar(architectures, throughputs, color=colors, width=0.5)
 
     for bar, val in zip(bars, throughputs):
-        ax.text(bar.get_x() + bar.get_width() / 2., bar.get_height(),
-                f"{val:,.1f}", ha="center", va="bottom", fontsize=13, fontweight="bold")
+        ax.text(
+            bar.get_x() + bar.get_width() / 2.0,
+            bar.get_height(),
+            f"{val:,.1f}",
+            ha="center",
+            va="bottom",
+            fontsize=13,
+            fontweight="bold",
+        )
 
     ax.set_ylabel("Throughput (req/s)")
     ax.set_title("Overall Throughput Comparison")
@@ -353,9 +467,15 @@ def plot_throughput_bar(monolith_df: pd.DataFrame, micro_df: pd.DataFrame, outpu
     # Add ratio annotation
     if throughputs[1] > 0:
         ratio = throughputs[0] / throughputs[1]
-        ax.annotate(f"Monolith is {ratio:.1f}x higher",
-                    xy=(0.5, 0.92), xycoords="axes fraction",
-                    ha="center", fontsize=11, fontstyle="italic", color="gray")
+        ax.annotate(
+            f"Monolith is {ratio:.1f}x higher",
+            xy=(0.5, 0.92),
+            xycoords="axes fraction",
+            ha="center",
+            fontsize=11,
+            fontstyle="italic",
+            color="gray",
+        )
 
     plt.tight_layout()
     plt.savefig(os.path.join(output_dir, "throughput_bar.png"))
@@ -363,7 +483,9 @@ def plot_throughput_bar(monolith_df: pd.DataFrame, micro_df: pd.DataFrame, outpu
     print(f"  Saved: throughput_bar.png")
 
 
-def plot_latency_boxplot(monolith_df: pd.DataFrame, micro_df: pd.DataFrame, output_dir: str):
+def plot_latency_boxplot(
+    monolith_df: pd.DataFrame, micro_df: pd.DataFrame, output_dir: str
+):
     """Side-by-side boxplots showing latency spread, quartiles, and outliers."""
     fig, ax = plt.subplots(figsize=(9, 7))
 
@@ -381,17 +503,26 @@ def plot_latency_boxplot(monolith_df: pd.DataFrame, micro_df: pd.DataFrame, outp
         micro_capped = micro_capped.sample(n=max_samples, random_state=42)
 
     # Build a combined DataFrame for seaborn
-    combined = pd.DataFrame({
-        "Response Time (ms)": pd.concat([mono_capped, micro_capped], ignore_index=True),
-        "Architecture": (["Monolith"] * len(mono_capped) + ["Microservices"] * len(micro_capped)),
-    })
+    combined = pd.DataFrame(
+        {
+            "Response Time (ms)": pd.concat(
+                [mono_capped, micro_capped], ignore_index=True
+            ),
+            "Architecture": (
+                ["Monolith"] * len(mono_capped) + ["Microservices"] * len(micro_capped)
+            ),
+        }
+    )
 
     sns.boxplot(
         data=combined,
         x="Architecture",
         y="Response Time (ms)",
         hue="Architecture",
-        palette={"Monolith": COLORS["monolith"], "Microservices": COLORS["microservices"]},
+        palette={
+            "Monolith": COLORS["monolith"],
+            "Microservices": COLORS["microservices"],
+        },
         width=0.5,
         fliersize=2,
         legend=False,
@@ -402,8 +533,16 @@ def plot_latency_boxplot(monolith_df: pd.DataFrame, micro_df: pd.DataFrame, outp
     for i, arch in enumerate(["Monolith", "Microservices"]):
         subset = combined[combined["Architecture"] == arch]["Response Time (ms)"]
         median = subset.median()
-        ax.text(i, median, f" {median:.1f}ms",
-                ha="left", va="center", fontsize=10, fontweight="bold", color="black")
+        ax.text(
+            i,
+            median,
+            f" {median:.1f}ms",
+            ha="left",
+            va="center",
+            fontsize=10,
+            fontweight="bold",
+            color="black",
+        )
 
     ax.set_title("Response Time Distribution (capped at P99)")
 
@@ -413,38 +552,46 @@ def plot_latency_boxplot(monolith_df: pd.DataFrame, micro_df: pd.DataFrame, outp
     print(f"  Saved: latency_boxplot.png")
 
 
-def plot_endpoint_latency_over_time(monolith_df: pd.DataFrame, micro_df: pd.DataFrame, output_dir: str):
+def plot_endpoint_latency_over_time(
+    monolith_df: pd.DataFrame, micro_df: pd.DataFrame, output_dir: str
+):
     """Per-endpoint P95 latency over time — merged comparison showing both architectures."""
     # Get all unique endpoints from both datasets
-    all_endpoints = sorted(set(monolith_df["endpoint"].unique()) | set(micro_df["endpoint"].unique()))
-    
+    all_endpoints = sorted(
+        set(monolith_df["endpoint"].unique()) | set(micro_df["endpoint"].unique())
+    )
+
     # Define colors for different endpoint types (same color for same endpoint across architectures)
     endpoint_colors = {
         "GET /products/{id}": "#4CAF50",
         "GET /products": "#4CAF50",
-        "GET /users/{id}": "#2196F3", 
+        "GET /users/{id}": "#2196F3",
         "GET /users": "#2196F3",
         "POST /orders": "#FF5722",
     }
-    
+
     fig, ax = plt.subplots(figsize=(14, 7))
-    
-    for label, df, linestyle, alpha in [("Monolith", monolith_df, "-", 0.9), 
-                                         ("Microservices", micro_df, "--", 0.8)]:
+
+    for label, df, linestyle, alpha in [
+        ("Monolith", monolith_df, "-", 0.9),
+        ("Microservices", micro_df, "--", 0.8),
+    ]:
         df_copy = df.copy()
-        df_copy["second"] = ((df_copy["timeStamp"] - df_copy["timeStamp"].min()) / 1000).astype(int)
+        df_copy["second"] = (
+            (df_copy["timeStamp"] - df_copy["timeStamp"].min()) / 1000
+        ).astype(int)
         df_copy["bucket"] = (df_copy["second"] // 10) * 10
-        
+
         for endpoint in all_endpoints:
             ep_data = df_copy[df_copy["endpoint"] == endpoint]
             if ep_data.empty:
                 continue
-            
+
             p95_over_time = ep_data.groupby("bucket")["elapsed"].quantile(0.95)
-            
+
             # Get color for this endpoint (default to gray if not in map)
             color = endpoint_colors.get(endpoint, "gray")
-            
+
             ax.plot(
                 p95_over_time.index,
                 p95_over_time.values,
@@ -454,15 +601,17 @@ def plot_endpoint_latency_over_time(monolith_df: pd.DataFrame, micro_df: pd.Data
                 alpha=alpha,
                 linewidth=2.2,
             )
-    
+
     ax.set_xlabel("Time (seconds)")
     ax.set_ylabel("P95 Latency (ms)")
     ax.set_title("Per-Endpoint P95 Latency Over Time (10s buckets)")
     ax.legend(loc="best", fontsize=9, ncol=2)
     ax.grid(True, alpha=0.3)
-    
+
     plt.tight_layout()
-    plt.savefig(os.path.join(output_dir, "endpoint_latency_over_time.png"), bbox_inches="tight")
+    plt.savefig(
+        os.path.join(output_dir, "endpoint_latency_over_time.png"), bbox_inches="tight"
+    )
     plt.close()
     print(f"  Saved: endpoint_latency_over_time.png")
 
@@ -479,13 +628,17 @@ def plot_scaling_comparison(results_dir: str, output_dir: str):
     micro_files = sorted(results_path.glob("microservices_*threads.jtl"))
 
     if not mono_files and not micro_files:
-        print("  No scaling result files found (pattern: *_Nthreads.jtl). Skipping scaling charts.")
+        print(
+            "  No scaling result files found (pattern: *_Nthreads.jtl). Skipping scaling charts."
+        )
         return
 
     fig, axes = plt.subplots(1, 2, figsize=(16, 7))
 
-    for files, label, color in [(mono_files, "Monolith", COLORS["monolith"]),
-                                 (micro_files, "Microservices", COLORS["microservices"])]:
+    for files, label, color in [
+        (mono_files, "Monolith", COLORS["monolith"]),
+        (micro_files, "Microservices", COLORS["microservices"]),
+    ]:
         threads_list = []
         throughputs = []
         p95s = []
@@ -504,8 +657,12 @@ def plot_scaling_comparison(results_dir: str, output_dir: str):
             p95s.append(m["p95_latency_ms"])
 
         if threads_list:
-            axes[0].plot(threads_list, throughputs, "o-", label=label, color=color, markersize=8)
-            axes[1].plot(threads_list, p95s, "o-", label=label, color=color, markersize=8)
+            axes[0].plot(
+                threads_list, throughputs, "o-", label=label, color=color, markersize=8
+            )
+            axes[1].plot(
+                threads_list, p95s, "o-", label=label, color=color, markersize=8
+            )
 
     axes[0].set_xlabel("Concurrent Threads")
     axes[0].set_ylabel("Throughput (req/s)")
@@ -524,7 +681,9 @@ def plot_scaling_comparison(results_dir: str, output_dir: str):
     print(f"  Saved: scaling_comparison.png")
 
 
-def generate_csv_report(monolith_df: pd.DataFrame, micro_df: pd.DataFrame, output_dir: str):
+def generate_csv_report(
+    monolith_df: pd.DataFrame, micro_df: pd.DataFrame, output_dir: str
+):
     """Generate a CSV summary report."""
     mono_m = compute_metrics(monolith_df)
     micro_m = compute_metrics(micro_df)
@@ -551,114 +710,255 @@ def generate_csv_report(monolith_df: pd.DataFrame, micro_df: pd.DataFrame, outpu
     print(f"  Saved: per_endpoint_summary.csv")
 
 
-def run_comparison(monolith_path: str, micro_path: str, output_dir: str,
-                   results_dir: str = None, warmup: int = 0):
-    """Run full comparison analysis."""
+def discover_experiment_runs(experiment_dir: str) -> tuple[list[Path], list[Path]]:
+    """Discover run_*.jtl files for both architectures."""
+    exp_path = Path(experiment_dir)
+    # experiment_dir + "monolith" + run_\d.jtl
+    monolith_files = sorted(exp_path.joinpath("monolith").glob("run_*.jtl"))
+    microservices_files = sorted(exp_path.joinpath("microservices").glob("run_*.jtl"))
+    return monolith_files, microservices_files
+
+
+def _run_number_from_name(path: Path) -> int:
+    """Extract run number from run_N filename."""
+    try:
+        return int(path.stem.split("_")[1])
+    except (IndexError, ValueError):
+        return 0
+
+
+def _plot_multi_run_series(
+    df: pd.DataFrame,
+    metric: str,
+    ylabel: str,
+    title: str,
+    output_name: str,
+    output_dir: str,
+):
+    """Plot run-indexed line chart for a metric."""
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    for arch, color in [
+        ("Monolith", COLORS["monolith"]),
+        ("Microservices", COLORS["microservices"]),
+    ]:
+        subset = df[df["architecture"] == arch].sort_values("run")
+        if subset.empty:
+            continue
+        ax.plot(
+            subset["run"], subset[metric], "o-", color=color, label=arch, linewidth=2
+        )
+
+    ax.set_xlabel("Run")
+    ax.set_ylabel(ylabel)
+    ax.set_title(title)
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_dir, output_name))
+    plt.close()
+    print(f"  Saved: {output_name}")
+
+
+def _plot_multi_run_boxplot(
+    df: pd.DataFrame,
+    metric: str,
+    ylabel: str,
+    title: str,
+    output_name: str,
+    output_dir: str,
+):
+    """Plot architecture-level boxplot over runs for a metric."""
+    fig, ax = plt.subplots(figsize=(9, 6))
+    sns.boxplot(
+        data=df,
+        x="architecture",
+        y=metric,
+        hue="architecture",
+        palette={
+            "Monolith": COLORS["monolith"],
+            "Microservices": COLORS["microservices"],
+        },
+        legend=False,
+        ax=ax,
+    )
+    sns.stripplot(
+        data=df,
+        x="architecture",
+        y=metric,
+        color="black",
+        alpha=0.5,
+        size=5,
+        ax=ax,
+    )
+    ax.set_xlabel("Architecture")
+    ax.set_ylabel(ylabel)
+    ax.set_title(title)
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_dir, output_name))
+    plt.close()
+    print(f"  Saved: {output_name}")
+
+
+def run_experiment(experiment_dir: str, output_dir: str, warmup: int = 0):
+    """Analyze and compare monolith vs microservices across all runs.
+
+    Expected structure:
+      <experiment_dir>/monolith/run_1.jtl
+      <experiment_dir>/microservices/run_1.jtl
+    """
     os.makedirs(output_dir, exist_ok=True)
 
-    print("\nLoading result files...")
-    mono_df = load_jtl(monolith_path, warmup_seconds=warmup)
-    micro_df = load_jtl(micro_path, warmup_seconds=warmup)
-    print(f"  Monolith:       {len(mono_df):,} samples")
-    print(f"  Microservices:  {len(micro_df):,} samples")
+    monolith_files, microservices_files = discover_experiment_runs(experiment_dir)
 
-    # Print summaries
-    mono_m = compute_metrics(mono_df)
-    micro_m = compute_metrics(micro_df)
-    print_summary("Monolith", mono_m)
-    print_summary("Microservices", micro_m)
+    if not monolith_files:
+        raise FileNotFoundError(
+            f"No monolith run files found in: {Path(experiment_dir) / 'monolith'}"
+        )
+    if not microservices_files:
+        raise FileNotFoundError(
+            f"No microservices run files found in: {Path(experiment_dir) / 'microservices'}"
+        )
 
-    # Generate all charts
-    print("\nGenerating charts...")
-    plot_latency_comparison(mono_df, micro_df, output_dir)
-    plot_latency_distribution(mono_df, micro_df, output_dir)
-    plot_throughput_over_time(mono_df, micro_df, output_dir)
-    plot_per_endpoint_comparison(mono_df, micro_df, output_dir)
-    plot_error_rate_comparison(mono_df, micro_df, output_dir)
-    plot_latency_over_time(mono_df, micro_df, output_dir)
-    plot_throughput_bar(mono_df, micro_df, output_dir)
-    plot_latency_boxplot(mono_df, micro_df, output_dir)
-    plot_endpoint_latency_over_time(mono_df, micro_df, output_dir)
+    print("\nDiscovered run files:")
+    print(f"  Monolith:      {len(monolith_files)}")
+    print(f"  Microservices: {len(microservices_files)}")
 
-    # Generate CSV report
-    print("\nGenerating reports...")
-    generate_csv_report(mono_df, micro_df, output_dir)
+    run_rows = []
+    monolith_dfs = []
+    microservices_dfs = []
 
-    # Scaling comparison if results directory provided
-    if results_dir:
-        plot_scaling_comparison(results_dir, output_dir)
+    for arch, files in [
+        ("Monolith", monolith_files),
+        ("Microservices", microservices_files),
+    ]:
+        print(f"\nLoading {arch} runs...")
+        for file_path in files:
+            run_no = _run_number_from_name(file_path)
+            df = load_jtl(str(file_path), warmup_seconds=warmup)
+            m = compute_metrics(df)
+            m["architecture"] = arch
+            m["run"] = run_no
+            m["file"] = str(file_path)
+            run_rows.append(m)
+
+            if arch == "Monolith":
+                monolith_dfs.append(df)
+            else:
+                microservices_dfs.append(df)
+
+    per_run_df = pd.DataFrame(run_rows)
+    per_run_df = per_run_df.sort_values(["architecture", "run"]).reset_index(drop=True)
+
+    per_run_path = os.path.join(output_dir, "per_run_summary.csv")
+    per_run_df.to_csv(per_run_path, index=False)
+    print(f"\n  Saved: per_run_summary.csv")
+
+    numeric_cols = [
+        "total_requests",
+        "duration_seconds",
+        "throughput_rps",
+        "avg_latency_ms",
+        "median_latency_ms",
+        "p90_latency_ms",
+        "p95_latency_ms",
+        "p99_latency_ms",
+        "max_latency_ms",
+        "min_latency_ms",
+        "error_count",
+        "error_rate_pct",
+        "avg_bytes",
+    ]
+    aggregate_df = (
+        per_run_df.groupby("architecture")[numeric_cols]
+        .agg(["mean", "std", "min", "max"])
+        .round(4)
+    )
+    aggregate_df.columns = [f"{col}_{stat}" for col, stat in aggregate_df.columns]
+    aggregate_df = aggregate_df.reset_index()
+
+    aggregate_path = os.path.join(output_dir, "aggregate_summary.csv")
+    aggregate_df.to_csv(aggregate_path, index=False)
+    print("  Saved: aggregate_summary.csv")
+
+    print("\nGenerating multi-run charts...")
+    _plot_multi_run_series(
+        per_run_df,
+        "throughput_rps",
+        "Throughput (req/s)",
+        "Throughput Across Runs",
+        "throughput_per_run.png",
+        output_dir,
+    )
+    _plot_multi_run_series(
+        per_run_df,
+        "p95_latency_ms",
+        "P95 Latency (ms)",
+        "P95 Latency Across Runs",
+        "p95_latency_per_run.png",
+        output_dir,
+    )
+    _plot_multi_run_series(
+        per_run_df,
+        "error_rate_pct",
+        "Error Rate (%)",
+        "Error Rate Across Runs",
+        "error_rate_per_run.png",
+        output_dir,
+    )
+
+    _plot_multi_run_boxplot(
+        per_run_df,
+        "throughput_rps",
+        "Throughput (req/s)",
+        "Run-Level Throughput Distribution",
+        "throughput_boxplot_runs.png",
+        output_dir,
+    )
+    _plot_multi_run_boxplot(
+        per_run_df,
+        "p95_latency_ms",
+        "P95 Latency (ms)",
+        "Run-Level P95 Latency Distribution",
+        "p95_latency_boxplot_runs.png",
+        output_dir,
+    )
+    _plot_multi_run_boxplot(
+        per_run_df,
+        "error_rate_pct",
+        "Error Rate (%)",
+        "Run-Level Error Rate Distribution",
+        "error_rate_boxplot_runs.png",
+        output_dir,
+    )
+
+    # Always generate full architecture-vs-architecture comparison on combined runs.
+    monolith_all = pd.concat(monolith_dfs, ignore_index=True)
+    microservices_all = pd.concat(microservices_dfs, ignore_index=True)
+
+    print("\nGenerating architecture comparison charts (combined runs)...")
+    mono_m = compute_metrics(monolith_all)
+    micro_m = compute_metrics(microservices_all)
+    print_summary("Monolith (all runs)", mono_m)
+    print_summary("Microservices (all runs)", micro_m)
+
+    plot_latency_comparison(monolith_all, microservices_all, output_dir)
+    plot_latency_distribution(monolith_all, microservices_all, output_dir)
+    plot_throughput_over_time(monolith_all, microservices_all, output_dir)
+    plot_per_endpoint_comparison(monolith_all, microservices_all, output_dir)
+    plot_error_rate_comparison(monolith_all, microservices_all, output_dir)
+    plot_latency_over_time(monolith_all, microservices_all, output_dir)
+    plot_throughput_bar(monolith_all, microservices_all, output_dir)
+    plot_latency_boxplot(monolith_all, microservices_all, output_dir)
+    plot_endpoint_latency_over_time(monolith_all, microservices_all, output_dir)
+
+    print("\nGenerating architecture comparison reports...")
+    generate_csv_report(monolith_all, microservices_all, output_dir)
+
+    # Optional scaling chart if thread-scaling files are present.
+    plot_scaling_comparison(experiment_dir, output_dir)
 
     print(f"\nAll outputs saved to: {output_dir}")
-
-
-def run_single(filepath: str, label: str, output_dir: str, warmup: int = 0):
-    """Analyze a single result file."""
-    os.makedirs(output_dir, exist_ok=True)
-
-    print(f"\nLoading: {filepath}")
-    df = load_jtl(filepath, warmup_seconds=warmup)
-    print(f"  Samples: {len(df):,}")
-
-    m = compute_metrics(df)
-    print_summary(label, m)
-
-    # Single architecture charts
-    fig, axes = plt.subplots(2, 2, figsize=(16, 14))
-
-    # Latency distribution
-    cap = df["elapsed"].quantile(0.99)
-    axes[0][0].hist(df["elapsed"][df["elapsed"] <= cap], bins=100, color="#2196F3", alpha=0.7, edgecolor="white")
-    axes[0][0].axvline(df["elapsed"].median(), color="red", linestyle="--",
-                       label=f'Median: {df["elapsed"].median():.0f}ms')
-    axes[0][0].axvline(df["elapsed"].quantile(0.95), color="orange", linestyle="--",
-                       label=f'P95: {df["elapsed"].quantile(0.95):.0f}ms')
-    axes[0][0].set_title("Latency Distribution")
-    axes[0][0].set_xlabel("Response Time (ms)")
-    axes[0][0].legend()
-
-    # Throughput over time
-    df_copy = df.copy()
-    df_copy["second"] = ((df_copy["timeStamp"] - df_copy["timeStamp"].min()) / 1000).astype(int)
-    throughput = df_copy.groupby("second").size().rolling(window=30, min_periods=1).mean()
-    axes[0][1].plot(throughput.index, throughput.values, color="#2196F3", alpha=0.8)
-    axes[0][1].set_title("Throughput Over Time (30s rolling avg)")
-    axes[0][1].set_xlabel("Time (seconds)")
-    axes[0][1].set_ylabel("Requests/sec")
-
-    # P95 over time
-    df_copy["bucket"] = (df_copy["second"] // 10) * 10
-    p95_time = df_copy.groupby("bucket")["elapsed"].quantile(0.95)
-    axes[1][0].plot(p95_time.index, p95_time.values, color="#FF5722", alpha=0.8)
-    axes[1][0].set_title("P95 Latency Over Time (10s buckets)")
-    axes[1][0].set_xlabel("Time (seconds)")
-    axes[1][0].set_ylabel("P95 Latency (ms)")
-
-    # Per-endpoint summary
-    ep_metrics = compute_per_endpoint_metrics(df)
-    main_endpoints = ["GET /products", "GET /users", "POST /orders"]
-    ep_filtered = ep_metrics[ep_metrics["endpoint"].isin(main_endpoints)]
-    if not ep_filtered.empty:
-        ep_filtered.plot(x="endpoint", y=["avg_latency_ms", "p95_latency_ms", "p99_latency_ms"],
-                        kind="bar", ax=axes[1][1])
-        axes[1][1].set_title("Latency by Endpoint")
-        axes[1][1].set_ylabel("Latency (ms)")
-        axes[1][1].tick_params(axis="x", rotation=0)
-    else:
-        axes[1][1].text(0.5, 0.5, "No endpoint data", ha="center", va="center", fontsize=14)
-        axes[1][1].set_title("Latency by Endpoint")
-
-    plt.suptitle(f"{label} - Performance Analysis", fontsize=16, y=1.02)
-    plt.tight_layout()
-
-    safe_label = label.replace(" ", "_").lower()
-    plt.savefig(os.path.join(output_dir, f"{safe_label}_analysis.png"), bbox_inches="tight")
-    plt.close()
-    print(f"\n  Saved: {safe_label}_analysis.png")
-
-    # Save CSV
-    report = pd.DataFrame([m])
-    report.to_csv(os.path.join(output_dir, f"{safe_label}_summary.csv"), index=False)
-    print(f"  Saved: {safe_label}_summary.csv")
 
 
 def main():
@@ -667,37 +967,31 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Compare two architectures:
-  python visualize.py --monolith results/monolith.jtl --microservices results/microservices.jtl
-
-  # Analyze a single result:
-  python visualize.py --single results/monolith.jtl --label "Monolith t3.small"
+  # Analyze full experiment directory (required):
+  python visualize.py --experiment-dir results/2026-04-10_12-34-56
 
   # With custom output directory:
-  python visualize.py --monolith results/monolith.jtl --microservices results/micro.jtl --output charts/
-
-  # Include scaling comparison (requires *_Nthreads.jtl files in results dir):
-  python visualize.py --monolith results/monolith.jtl --microservices results/micro.jtl --results-dir results/
-        """
+  python visualize.py --experiment-dir results/2026-04-10_12-34-56 --output results/2026-04-10_12-34-56/charts
+        """,
     )
-    parser.add_argument("--monolith", help="Path to monolith .jtl result file")
-    parser.add_argument("--microservices", help="Path to microservices .jtl result file")
-    parser.add_argument("--single", help="Path to a single .jtl file for individual analysis")
-    parser.add_argument("--label", default="Benchmark", help="Label for single analysis")
-    parser.add_argument("--output", default="results/charts", help="Output directory for charts")
-    parser.add_argument("--results-dir", help="Directory with scaling result files (*_Nthreads.jtl)")
-    parser.add_argument("--warmup", type=int, default=0,
-                        help="Seconds of warmup data to discard from the start (default: 0)")
+    parser.add_argument(
+        "--experiment-dir",
+        required=True,
+        help="Experiment directory containing monolith/run_*.jtl and microservices/run_*.jtl",
+    )
+    parser.add_argument(
+        "--output", default="results/charts", help="Output directory for charts"
+    )
+    parser.add_argument(
+        "--warmup",
+        type=int,
+        default=0,
+        help="Seconds of warmup data to discard from the start (default: 0)",
+    )
 
     args = parser.parse_args()
-
-    if args.single:
-        run_single(args.single, args.label, args.output, warmup=args.warmup)
-    elif args.monolith and args.microservices:
-        run_comparison(args.monolith, args.microservices, args.output,
-                       args.results_dir, warmup=args.warmup)
-    else:
-        parser.error("Provide either --monolith and --microservices, or --single")
+    print(f"Experiment Directory: {args.experiment_dir}")
+    run_experiment(args.experiment_dir, args.output, warmup=args.warmup)
 
 
 if __name__ == "__main__":

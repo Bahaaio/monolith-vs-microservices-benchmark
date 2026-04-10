@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+
 # =============================================================================
 # run.sh - Run the full benchmark experiment
 # =============================================================================
@@ -11,6 +12,7 @@
 #   WARMUP=15          Warmup duration in seconds (default: 15)
 #   RAMP_UP=5          Ramp-up time in seconds (default: 5)
 #   COOL_DOWN=15       Cool-down time between tests in seconds (default: 15)
+#   RUNS=5             Number of runs per architecture (default: 5)
 # =============================================================================
 
 set -euo pipefail
@@ -33,6 +35,7 @@ DURATION="${DURATION:-60}"
 WARMUP="${WARMUP:-15}"
 RAMP_UP="${RAMP_UP:-5}"
 COOL_DOWN="${COOL_DOWN:-15}"
+RUNS="${RUNS:-5}"
 
 # ---------------------------------------------------------------------------
 # Utility functions
@@ -100,7 +103,7 @@ setup() {
 }
 
 print_header() {
-  info ""
+  echo ""
   info "============================================"
   info "  Monolith vs Microservices Experiment"
   info "============================================"
@@ -109,10 +112,11 @@ print_header() {
   info "  Warmup:     ${WARMUP}s"
   info "  Ramp-up:    ${RAMP_UP}s"
   info "  Cool-down:  ${COOL_DOWN}s"
+  info "  Runs/Arch:  ${RUNS}"
   info "  Run ID:     $TIMESTAMP"
   info "  Output:     $RUN_DIR"
   info "============================================"
-  info ""
+  echo ""
 }
 
 # ---------------------------------------------------------------------------
@@ -122,15 +126,14 @@ run_jmeter() {
   local arch="$1"
   local host="$2"
   local port="$3"
-  local output_file="$RUN_DIR/${arch}.jtl"
-  local log_file="$RUN_DIR/${arch}.log"
+  local output_file="$4"
+  local html_report_dir="$5"
 
   info "Running JMeter for $arch -> $host:$port"
 
   jmeter -n \
     -t "$PROJECT_DIR/jmeter/benchmark.jmx" \
     -l "$output_file" \
-    -j "$log_file" \
     -Jhost="$host" \
     -Jport="$port" \
     -Jusers_port="$port" \
@@ -154,7 +157,6 @@ run_jmeter() {
   fi
 
   # Generate JMeter HTML dashboard
-  local html_report_dir="$RUN_DIR/${arch}_report"
   info "Generating JMeter HTML report -> $html_report_dir"
   jmeter -g "$output_file" -o "$html_report_dir" || warn "HTML report generation failed (non-fatal)"
 }
@@ -165,10 +167,6 @@ run_jmeter() {
 #   run_dir:         Path to the timestamped run directory
 #   warmup_seconds:  Number of warmup seconds to discard (default: 0)
 #
-# Expects:
-#   $run_dir/monolith.jtl
-#   $run_dir/microservices.jtl
-#
 analyze_results() {
   local run_dir="$1"
   local warmup="${2:-0}"
@@ -178,34 +176,28 @@ analyze_results() {
     return 1
   fi
 
-  local mono_file="$run_dir/monolith.jtl"
-  local micro_file="$run_dir/microservices.jtl"
   local output_dir="$run_dir/charts"
 
   step "Running analysis and generating charts..."
 
-  # Both files must exist
-  if [[ ! -f "$mono_file" ]]; then
-    error "Missing monolith results: $mono_file"
+  if [[ ! -d "$run_dir/monolith" ]]; then
+    error "Missing monolith results directory: $run_dir/monolith"
     return 1
   fi
 
-  if [[ ! -f "$micro_file" ]]; then
-    error "Missing microservices results: $micro_file"
+  if [[ ! -d "$run_dir/microservices" ]]; then
+    error "Missing microservices results directory: $run_dir/microservices"
     return 1
   fi
 
-  # Both files exist — run comparison
-  info "Monolith results:       $mono_file"
-  info "Microservices results:  $micro_file"
+  info "Monolith results directory:       $run_dir/monolith"
+  info "Microservices results directory:  $run_dir/microservices"
 
   uv run --directory "$PROJECT_DIR/python" \
     python visualize.py \
-    --monolith "$mono_file" \
-    --microservices "$micro_file" \
+    --experiment-dir "$run_dir" \
     --warmup "$warmup" \
-    --output "$output_dir" \
-    --results-dir "$run_dir"
+    --output "$output_dir"
 
   info "Charts saved to: $output_dir/"
 }
@@ -214,42 +206,68 @@ analyze_results() {
 # Test monolith
 # ---------------------------------------------------------------------------
 test_monolith() {
-  step "===== Testing MONOLITH architecture ====="
+  local arch_dir="$RUN_DIR/monolith"
+  mkdir -p "$arch_dir"
 
-  # Stop any previous runs
-  docker compose -f "$PROJECT_DIR/docker-compose-monolith.yml" down -v 2>/dev/null || true
+  step "===== Testing MONOLITH architecture ($RUNS runs) ====="
 
-  step "1/3 Building and starting monolith (waiting for healthchecks)..."
-  docker compose -f "$PROJECT_DIR/docker-compose-monolith.yml" up --build --wait
+  for run in $(seq 1 "$RUNS"); do
+    local output_file="$arch_dir/run_${run}.jtl"
+    local html_report_dir="$arch_dir/run_${run}_report"
 
-  step "2/3 Running benchmark..."
-  run_jmeter "monolith" "localhost" "8080"
+    step "[Monolith] Run $run/$RUNS - cleaning environment..."
+    docker compose -f "$PROJECT_DIR/docker-compose-monolith.yml" down -v --remove-orphans 2>/dev/null || true
 
-  step "3/3 Stopping monolith..."
-  docker compose -f "$PROJECT_DIR/docker-compose-monolith.yml" down -v
+    step "[Monolith] Run $run/$RUNS - starting stack..."
+    docker compose -f "$PROJECT_DIR/docker-compose-monolith.yml" up --wait --build --quiet-build
 
-  info "Monolith test complete."
+    step "[Monolith] Run $run/$RUNS - benchmarking..."
+    run_jmeter "monolith" "localhost" "8080" "$output_file" "$html_report_dir"
+
+    step "[Monolith] Run $run/$RUNS - stopping stack..."
+    docker compose -f "$PROJECT_DIR/docker-compose-monolith.yml" down -v --remove-orphans
+
+    if [[ "$run" -lt "$RUNS" ]]; then
+      info "Cooling down for $COOL_DOWN seconds before next monolith run..."
+      sleep "$COOL_DOWN"
+    fi
+  done
+
+  info "Monolith runs complete."
 }
 
 # ---------------------------------------------------------------------------
 # Test microservices
 # ---------------------------------------------------------------------------
 test_microservices() {
-  step "===== Testing MICROSERVICES architecture ====="
+  local arch_dir="$RUN_DIR/microservices"
+  mkdir -p "$arch_dir"
 
-  # Stop any previous runs
-  docker compose -f "$PROJECT_DIR/docker-compose-microservices.yml" down -v 2>/dev/null || true
+  step "===== Testing MICROSERVICES architecture ($RUNS runs) ====="
 
-  step "1/3 Building and starting microservices (waiting for healthchecks)..."
-  docker compose -f "$PROJECT_DIR/docker-compose-microservices.yml" up --build --wait
+  for run in $(seq 1 "$RUNS"); do
+    local output_file="$arch_dir/run_${run}.jtl"
+    local html_report_dir="$arch_dir/run_${run}_report"
 
-  step "2/3 Running benchmark..."
-  run_jmeter "microservices" "localhost" "8080"
+    step "[Microservices] Run $run/$RUNS - cleaning environment..."
+    docker compose -f "$PROJECT_DIR/docker-compose-microservices.yml" down -v --remove-orphans 2>/dev/null || true
 
-  step "3/3 Stopping microservices..."
-  docker compose -f "$PROJECT_DIR/docker-compose-microservices.yml" down -v
+    step "[Microservices] Run $run/$RUNS - starting stack..."
+    docker compose -f "$PROJECT_DIR/docker-compose-microservices.yml" up --wait --build --quiet-build
 
-  info "Microservices test complete."
+    step "[Microservices] Run $run/$RUNS - benchmarking..."
+    run_jmeter "microservices" "localhost" "8080" "$output_file" "$html_report_dir"
+
+    step "[Microservices] Run $run/$RUNS - stopping stack..."
+    docker compose -f "$PROJECT_DIR/docker-compose-microservices.yml" down -v --remove-orphans
+
+    if [[ "$run" -lt "$RUNS" ]]; then
+      info "Cooling down for $COOL_DOWN seconds before next microservices run..."
+      sleep "$COOL_DOWN"
+    fi
+  done
+
+  info "Microservices runs complete."
 }
 
 main() {
@@ -258,15 +276,11 @@ main() {
   print_header
 
   test_monolith
-
-  info "Cooling down for $COOL_DOWN seconds..."
-  sleep "$COOL_DOWN"
-
   test_microservices
 
   analyze_results "$RUN_DIR" "$WARMUP"
 
-  info ""
+  echo ""
   info "============================================"
   info "  Experiment Complete!"
   info "============================================"
