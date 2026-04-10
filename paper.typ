@@ -39,6 +39,99 @@ However, the decentralization inherent in microservices does not come without op
 Furthermore, while microservices are designed to prevent cascading failures—ensuring that a bug in one module does not collapse the entire ecosystem—the inter-service communication overhead introduces new latency patterns. Under peak load, the P95 latency (the time within which 95% of requests are completed) can degrade significantly due to network hops and resource competition, a phenomenon that is often less pronounced in the shared-memory environment of a monolith.
 
 While 85% of large organizations have adopted microservices for their perceived scalability, the architectural shift is frequently executed without a full understanding of the underlying resource trade-offs. This research aims to quantify these trade-offs—specifically regarding database efficiency and fault recovery—by subjecting both architectures to rigorous stress testing. By evaluating performance metrics such as connection exhaustion and P95 latency, this study provides a data-driven framework for determining when the 'infrastructure tax' of microservices outweighs their organizational benefits. #link("https://www.volitioncapital.com/news/microservices-software-architecture/")[\[5\]].
+
+= Methodology
+
+System Architecture
+
+To ensure a fair comparison, two functionally equivalent systems were implemented: a monolithic architecture and a microservices architecture. Both systems implement the same e-commerce domain consisting of three core entities: Users, Products, and Orders. Each system exposes identical REST APIs for retrieving users and products, and for creating orders.
+
+The monolithic system is deployed as a single Spring Boot application with a shared database and a single database connection pool. In contrast, the microservices system is composed of three independent services (User Service, Product Service, and Order Service) behind an API Gateway. Each service maintains its own database and connection pool, and inter-service communication is performed synchronously via HTTP.
+
+To ensure fairness, both architectures were allocated equivalent total system resources (CPU and memory), and identical datasets were used in all experiments.
+
+Load Testing Setup
+
+Performance evaluation was conducted using Apache JMeter. The workload simulates a typical read-heavy e-commerce scenario with the following distribution:
+
+50% GET /products/{id}
+30% GET /users/{id}
+20% POST /orders
+
+Each test run consists of:
+
+a ramp-up period to gradually introduce load
+a warm-up phase (excluded from analysis)
+a steady-state execution phase where metrics are collected
+
+The number of concurrent users (threads) is varied across experiments to evaluate system behavior under increasing load.
+
+Fault Injection Design
+
+To evaluate system resilience beyond steady-state performance, we introduce controlled fault injection scenarios. These faults are deterministic and reproducible, allowing systematic comparison between architectures.
+
+1. Connection Pool Exhaustion
+
+Connection pool exhaustion is simulated by increasing the number of concurrent requests while keeping the database connection pool size fixed. This creates contention for database connections, leading to queueing delays and potential request failures.
+
+The objective of this experiment is to identify:
+
+the load threshold at which performance degradation occurs
+the impact on latency distribution (particularly tail latency)
+differences in how resource contention manifests in monolithic vs microservice systems
+
+In the monolith, all requests compete for a single connection pool. In the microservices architecture, each service maintains its own pool, potentially isolating or redistributing contention.
+
+2. Partial Service Failure
+
+To simulate runtime failures, controlled exceptions are injected into specific components of the system. In the microservices architecture, failures are introduced in a single service (e.g., Product Service), while in the monolith the same failure logic is applied within the corresponding module.
+
+Failures are injected probabilistically (e.g., a fixed percentage of requests), ensuring consistent behavior across runs.
+
+This experiment evaluates:
+
+how failures propagate across system components
+the impact on overall system availability and error rate
+differences in fault isolation between architectures
+
+In microservices, failures may remain localized or propagate through inter-service calls. In contrast, in a monolith, failures occur within a shared process and may affect all requests uniformly.
+
+3. Artificial Latency Injection
+
+In addition to hard failures, we simulate performance degradation by introducing artificial delays (e.g., thread sleep) in selected components. This models real-world scenarios such as slow database queries or network latency.
+
+This experiment focuses on:
+
+cascading latency effects across dependent components
+queue buildup and thread contention
+system behavior under degraded but non-failing conditions
+
+This scenario is particularly relevant for microservices, where inter-service communication amplifies latency due to network overhead.
+
+Metrics Collected
+
+For each experiment, the following metrics are collected:
+
+Throughput (requests per second)
+Latency percentiles (P50, P95, P99)
+Error rate (percentage of failed requests)
+Latency over time (to observe degradation patterns)
+
+Warm-up periods are excluded from analysis to ensure measurements reflect steady-state behavior.
+
+Experimental Procedure
+
+Each experiment is conducted in isolation for both architectures using identical configurations. The procedure is as follows:
+
+Deploy the system using Docker Compose
+Wait for all services to become healthy
+Execute the JMeter test plan
+Collect raw performance data
+Tear down the environment
+Repeat for the alternate architecture
+
+A cooldown period is introduced between runs to avoid interference from residual system state.
+
 = Conclusion
 
 Both architectures have advantages and disadvantages, all depends on the problem to be solved, with no clear better architecture.
