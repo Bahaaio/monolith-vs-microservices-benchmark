@@ -141,10 +141,6 @@ services:
     depends_on:
       order-db:
         condition: service_healthy
-      user-service:
-        condition: service_healthy
-      product-service:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
       interval: 5s
@@ -170,13 +166,6 @@ services:
       PRODUCT_SERVICE_URL: http://product-service:8080
       ORDER_SERVICE_URL: http://order-service:8080
       JAVA_OPTS: "-Xms128m -Xmx256m -XX:+UseG1GC"
-    depends_on:
-      user-service:
-        condition: service_healthy
-      product-service:
-        condition: service_healthy
-      order-service:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
       interval: 5s
