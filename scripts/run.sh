@@ -62,7 +62,7 @@ SCENARIO_POOL_MAX_SIZE="10"
 SCENARIO_POOL_TIMEOUT_MS="2000"
 SCENARIO_POOL_MIN_IDLE="10"
 
-IFS=',' read -r -a SCENARIO_LIST <<< "$SCENARIOS"
+IFS=',' read -r -a SCENARIO_LIST <<<"$SCENARIOS"
 
 # ---------------------------------------------------------------------------
 # Utility functions
@@ -166,28 +166,27 @@ configure_scenario() {
   SCENARIO_POOL_MIN_IDLE="10"
 
   case "$scenario" in
-    baseline)
-      ;;
-    fault_injection)
-      SCENARIO_CHAOS_ENABLED="true"
-      SCENARIO_CHAOS_MODE="fault"
-      SCENARIO_CHAOS_FAULT_PERCENT="$FAULT_PERCENT"
-      ;;
-    latency_injection)
-      SCENARIO_CHAOS_ENABLED="true"
-      SCENARIO_CHAOS_MODE="latency"
-      SCENARIO_CHAOS_LATENCY_MS="$LATENCY_MS"
-      ;;
-    pool_exhaustion)
-      SCENARIO_THREADS="$POOL_THREADS"
-      SCENARIO_POOL_MAX_SIZE="$POOL_MAX_SIZE"
-      SCENARIO_POOL_TIMEOUT_MS="$POOL_TIMEOUT_MS"
-      SCENARIO_POOL_MIN_IDLE="$POOL_MIN_IDLE"
-      ;;
-    *)
-      error "Unknown scenario: $scenario"
-      exit 1
-      ;;
+  baseline) ;;
+  fault_injection)
+    SCENARIO_CHAOS_ENABLED="true"
+    SCENARIO_CHAOS_MODE="fault"
+    SCENARIO_CHAOS_FAULT_PERCENT="$FAULT_PERCENT"
+    ;;
+  latency_injection)
+    SCENARIO_CHAOS_ENABLED="true"
+    SCENARIO_CHAOS_MODE="latency"
+    SCENARIO_CHAOS_LATENCY_MS="$LATENCY_MS"
+    ;;
+  pool_exhaustion)
+    SCENARIO_THREADS="$POOL_THREADS"
+    SCENARIO_POOL_MAX_SIZE="$POOL_MAX_SIZE"
+    SCENARIO_POOL_TIMEOUT_MS="$POOL_TIMEOUT_MS"
+    SCENARIO_POOL_MIN_IDLE="$POOL_MIN_IDLE"
+    ;;
+  *)
+    error "Unknown scenario: $scenario"
+    exit 1
+    ;;
   esac
 }
 
@@ -196,9 +195,11 @@ print_scenario_config() {
   info "Scenario: $scenario"
   info "  Threads:            $SCENARIO_THREADS"
   info "  Chaos enabled:      $SCENARIO_CHAOS_ENABLED"
-  info "  Chaos mode:         $SCENARIO_CHAOS_MODE"
-  info "  Chaos fault %:      $SCENARIO_CHAOS_FAULT_PERCENT"
-  info "  Chaos latency ms:   $SCENARIO_CHAOS_LATENCY_MS"
+  if [[ "$SCENARIO_CHAOS_ENABLED" == "true" ]]; then
+    info "  Chaos mode:         $SCENARIO_CHAOS_MODE"
+    info "  Chaos fault %:      $SCENARIO_CHAOS_FAULT_PERCENT"
+    info "  Chaos latency ms:   $SCENARIO_CHAOS_LATENCY_MS"
+  fi
   info "  Pool max size:      $SCENARIO_POOL_MAX_SIZE"
   info "  Pool min idle:      $SCENARIO_POOL_MIN_IDLE"
   info "  Pool timeout ms:    $SCENARIO_POOL_TIMEOUT_MS"
@@ -208,7 +209,7 @@ write_scenario_metadata() {
   local scenario_dir="$1"
   local scenario="$2"
 
-  cat > "$scenario_dir/scenario_config.csv" <<EOF
+  cat >"$scenario_dir/scenario_config.csv" <<EOF
 scenario,threads,chaos_enabled,chaos_mode,chaos_fault_percent,chaos_latency_ms,pool_max_size,pool_min_idle,pool_timeout_ms
 $scenario,$SCENARIO_THREADS,$SCENARIO_CHAOS_ENABLED,$SCENARIO_CHAOS_MODE,$SCENARIO_CHAOS_FAULT_PERCENT,$SCENARIO_CHAOS_LATENCY_MS,$SCENARIO_POOL_MAX_SIZE,$SCENARIO_POOL_MIN_IDLE,$SCENARIO_POOL_TIMEOUT_MS
 EOF
