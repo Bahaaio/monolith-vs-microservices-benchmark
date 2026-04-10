@@ -11,6 +11,7 @@ Usage:
 """
 
 import argparse
+import math
 import os
 from pathlib import Path
 
@@ -36,6 +37,8 @@ COLORS = {
     "monolith": "#2196F3",
     "microservices": "#FF5722",
 }
+
+PRIMARY_METRICS = ["throughput_rps", "p95_latency_ms", "error_rate_pct"]
 
 
 def load_jtl(filepath: str, warmup_seconds: int = 0) -> pd.DataFrame:
@@ -147,6 +150,196 @@ def print_summary(label: str, metrics: dict):
     print(f"  Error Rate:        {metrics['error_rate_pct']:.4f}%")
     print(f"  Errors:            {metrics['error_count']:,}")
     print(f"{'=' * 60}")
+
+
+def _concat_runs_contiguous(run_dfs: list[pd.DataFrame]) -> pd.DataFrame:
+    """Concatenate runs while removing inter-run wall-clock gaps.
+
+    Each run keeps its relative timing, but timestamps are shifted so runs are
+    back-to-back. This avoids misleading throughput/duration artifacts from
+    startup/cooldown gaps between runs.
+    """
+    shifted = []
+    offset = 0
+    for df in run_dfs:
+        part = df.copy()
+        run_min = int(part["timeStamp"].min())
+        part["timeStamp"] = part["timeStamp"] - run_min + offset
+        run_span = int(part["timeStamp"].max()) + 1
+        offset += run_span
+        shifted.append(part)
+
+    if not shifted:
+        return pd.DataFrame()
+
+    return pd.concat(shifted, ignore_index=True)
+
+
+def _prepare_run_second_series(df: pd.DataFrame) -> pd.DataFrame:
+    """Return a copy with per-run relative second column."""
+    out = df.copy()
+    out["second"] = ((out["timeStamp"] - out["timeStamp"].min()) / 1000).astype(int)
+    return out
+
+
+def _aggregate_series_with_ci(
+    series_list: list[pd.Series],
+) -> tuple[pd.Series, pd.Series]:
+    """Align multiple indexed series and return mean and 95% CI half-width."""
+    if not series_list:
+        return pd.Series(dtype=float), pd.Series(dtype=float)
+
+    aligned = pd.concat(series_list, axis=1)
+    mean = aligned.mean(axis=1)
+    std = aligned.std(axis=1, ddof=1).fillna(0.0)
+    n = aligned.notna().sum(axis=1).clip(lower=1)
+    ci = 1.96 * std / np.sqrt(n)
+    return mean, ci
+
+
+def plot_throughput_over_time_avg(
+    monolith_runs: list[pd.DataFrame],
+    micro_runs: list[pd.DataFrame],
+    output_dir: str,
+):
+    """Mean throughput-over-time across runs with 95% CI."""
+    fig, ax = plt.subplots()
+
+    for label, runs, color in [
+        ("Monolith", monolith_runs, COLORS["monolith"]),
+        ("Microservices", micro_runs, COLORS["microservices"]),
+    ]:
+        run_series = []
+        for run_df in runs:
+            d = _prepare_run_second_series(run_df)
+            throughput = (
+                d.groupby("second").size().rolling(window=30, min_periods=1).mean()
+            )
+            run_series.append(throughput)
+
+        mean, ci = _aggregate_series_with_ci(run_series)
+        if mean.empty:
+            continue
+
+        ax.plot(mean.index, mean.values, label=label, color=color, alpha=0.9)
+        ax.fill_between(
+            mean.index, (mean - ci).values, (mean + ci).values, color=color, alpha=0.2
+        )
+
+    ax.set_xlabel("Time (seconds)")
+    ax.set_ylabel("Throughput (req/s)")
+    ax.set_title("Throughput Over Time (mean across runs, 95% CI)")
+    ax.legend()
+    ax.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, _: f"{int(x)}s"))
+
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_dir, "throughput_over_time.png"))
+    plt.close()
+    print("  Saved: throughput_over_time.png")
+
+
+def plot_latency_over_time_avg(
+    monolith_runs: list[pd.DataFrame],
+    micro_runs: list[pd.DataFrame],
+    output_dir: str,
+):
+    """Mean P95 latency-over-time across runs with 95% CI."""
+    fig, ax = plt.subplots()
+
+    for label, runs, color in [
+        ("Monolith", monolith_runs, COLORS["monolith"]),
+        ("Microservices", micro_runs, COLORS["microservices"]),
+    ]:
+        run_series = []
+        for run_df in runs:
+            d = _prepare_run_second_series(run_df)
+            d["bucket"] = (d["second"] // 10) * 10
+            p95 = d.groupby("bucket")["elapsed"].quantile(0.95)
+            run_series.append(p95)
+
+        mean, ci = _aggregate_series_with_ci(run_series)
+        if mean.empty:
+            continue
+
+        ax.plot(mean.index, mean.values, label=label, color=color, alpha=0.9)
+        ax.fill_between(
+            mean.index, (mean - ci).values, (mean + ci).values, color=color, alpha=0.2
+        )
+
+    ax.set_xlabel("Time (seconds)")
+    ax.set_ylabel("P95 Latency (ms)")
+    ax.set_title("P95 Latency Over Time (mean across runs, 95% CI)")
+    ax.legend()
+
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_dir, "latency_over_time.png"))
+    plt.close()
+    print("  Saved: latency_over_time.png")
+
+
+def plot_endpoint_latency_over_time_avg(
+    monolith_runs: list[pd.DataFrame],
+    micro_runs: list[pd.DataFrame],
+    output_dir: str,
+):
+    """Per-endpoint P95 latency over time as mean across runs."""
+    all_endpoints = set()
+    for run_df in monolith_runs + micro_runs:
+        all_endpoints.update(run_df["endpoint"].unique())
+    all_endpoints = sorted(all_endpoints)
+
+    endpoint_colors = {
+        "GET /products/{id}": "#4CAF50",
+        "GET /products": "#4CAF50",
+        "GET /users/{id}": "#2196F3",
+        "GET /users": "#2196F3",
+        "POST /orders": "#FF5722",
+    }
+
+    fig, ax = plt.subplots(figsize=(14, 7))
+
+    for label, runs, linestyle, alpha in [
+        ("Monolith", monolith_runs, "-", 0.9),
+        ("Microservices", micro_runs, "--", 0.8),
+    ]:
+        for endpoint in all_endpoints:
+            run_series = []
+            for run_df in runs:
+                d = _prepare_run_second_series(run_df)
+                ep = d[d["endpoint"] == endpoint]
+                if ep.empty:
+                    continue
+                ep["bucket"] = (ep["second"] // 10) * 10
+                p95 = ep.groupby("bucket")["elapsed"].quantile(0.95)
+                run_series.append(p95)
+
+            mean, _ = _aggregate_series_with_ci(run_series)
+            if mean.empty:
+                continue
+
+            color = endpoint_colors.get(endpoint, "gray")
+            ax.plot(
+                mean.index,
+                mean.values,
+                label=f"{endpoint} ({label})",
+                color=color,
+                linestyle=linestyle,
+                alpha=alpha,
+                linewidth=2.2,
+            )
+
+    ax.set_xlabel("Time (seconds)")
+    ax.set_ylabel("P95 Latency (ms)")
+    ax.set_title("Per-Endpoint P95 Latency Over Time (mean across runs)")
+    ax.legend(loc="best", fontsize=9, ncol=2)
+    ax.grid(True, alpha=0.3)
+
+    plt.tight_layout()
+    plt.savefig(
+        os.path.join(output_dir, "endpoint_latency_over_time.png"), bbox_inches="tight"
+    )
+    plt.close()
+    print("  Saved: endpoint_latency_over_time.png")
 
 
 def plot_latency_comparison(
@@ -800,29 +993,301 @@ def _plot_multi_run_boxplot(
     print(f"  Saved: {output_name}")
 
 
-def run_experiment(experiment_dir: str, output_dir: str, warmup: int = 0):
-    """Analyze and compare monolith vs microservices across all runs.
+def _confidence_interval_95(series: pd.Series) -> float:
+    """Approximate 95% CI half-width using normal approximation."""
+    clean = series.dropna()
+    n = len(clean)
+    if n < 2:
+        return 0.0
+    std = clean.std(ddof=1)
+    if pd.isna(std):
+        return 0.0
+    return float(1.96 * std / math.sqrt(n))
 
-    Expected structure:
-      <experiment_dir>/monolith/run_1.jtl
-      <experiment_dir>/microservices/run_1.jtl
-    """
-    os.makedirs(output_dir, exist_ok=True)
 
-    monolith_files, microservices_files = discover_experiment_runs(experiment_dir)
+def _generate_research_tables(per_run_df: pd.DataFrame, output_dir: str):
+    """Generate report-ready statistical tables."""
+    if per_run_df.empty:
+        return
+
+    if "scenario" not in per_run_df.columns:
+        per_run_df = per_run_df.copy()
+        per_run_df["scenario"] = "default"
+
+    # Mean/Std/CI by scenario x architecture.
+    rows = []
+    grouped = per_run_df.groupby(["scenario", "architecture"])
+    for (scenario, architecture), group in grouped:
+        row = {"scenario": scenario, "architecture": architecture, "runs": len(group)}
+        for metric in PRIMARY_METRICS:
+            row[f"{metric}_mean"] = round(float(group[metric].mean()), 4)
+            row[f"{metric}_std"] = (
+                round(float(group[metric].std(ddof=1)), 4) if len(group) > 1 else 0.0
+            )
+            row[f"{metric}_ci95"] = round(_confidence_interval_95(group[metric]), 4)
+        rows.append(row)
+
+    stats_df = pd.DataFrame(rows).sort_values(["scenario", "architecture"])
+    stats_df.to_csv(
+        os.path.join(output_dir, "scenario_architecture_stats.csv"), index=False
+    )
+    print("  Saved: scenario_architecture_stats.csv")
+
+    # Delta between architectures per scenario.
+    delta_rows = []
+    for scenario, group in per_run_df.groupby("scenario"):
+        mono = group[group["architecture"] == "Monolith"]
+        micro = group[group["architecture"] == "Microservices"]
+        if mono.empty or micro.empty:
+            continue
+
+        row = {"scenario": scenario}
+        for metric in PRIMARY_METRICS:
+            mono_mean = float(mono[metric].mean())
+            micro_mean = float(micro[metric].mean())
+            row[f"{metric}_monolith_mean"] = round(mono_mean, 4)
+            row[f"{metric}_microservices_mean"] = round(micro_mean, 4)
+            row[f"{metric}_delta_abs"] = round(micro_mean - mono_mean, 4)
+            if mono_mean != 0:
+                row[f"{metric}_delta_pct_vs_monolith"] = round(
+                    ((micro_mean - mono_mean) / mono_mean) * 100.0, 4
+                )
+            else:
+                row[f"{metric}_delta_pct_vs_monolith"] = np.nan
+        delta_rows.append(row)
+
+    if delta_rows:
+        delta_df = pd.DataFrame(delta_rows).sort_values("scenario")
+        delta_df.to_csv(
+            os.path.join(output_dir, "architecture_delta_by_scenario.csv"), index=False
+        )
+        print("  Saved: architecture_delta_by_scenario.csv")
+    else:
+        print("  Skipped: architecture_delta_by_scenario.csv (insufficient data)")
+
+    # Degradation vs baseline for each architecture.
+    if "baseline" in set(per_run_df["scenario"]):
+        degr_rows = []
+        baselines = (
+            per_run_df[per_run_df["scenario"] == "baseline"]
+            .groupby("architecture")[PRIMARY_METRICS]
+            .mean()
+        )
+        for (scenario, architecture), group in per_run_df.groupby(
+            ["scenario", "architecture"]
+        ):
+            if scenario == "baseline" or architecture not in baselines.index:
+                continue
+            row = {"scenario": scenario, "architecture": architecture}
+            for metric in PRIMARY_METRICS:
+                scenario_mean = float(group[metric].mean())
+                baseline_mean = float(baselines.loc[architecture, metric])
+                row[f"{metric}_mean"] = round(scenario_mean, 4)
+                row[f"baseline_{metric}_mean"] = round(baseline_mean, 4)
+                if baseline_mean != 0:
+                    row[f"{metric}_change_pct_vs_baseline"] = round(
+                        ((scenario_mean - baseline_mean) / baseline_mean) * 100.0, 4
+                    )
+                else:
+                    row[f"{metric}_change_pct_vs_baseline"] = np.nan
+            degr_rows.append(row)
+
+        if degr_rows:
+            degradation_df = pd.DataFrame(degr_rows).sort_values(
+                ["architecture", "scenario"]
+            )
+            degradation_df.to_csv(
+                os.path.join(output_dir, "degradation_vs_baseline.csv"), index=False
+            )
+            print("  Saved: degradation_vs_baseline.csv")
+        else:
+            print("  Skipped: degradation_vs_baseline.csv (only baseline present)")
+
+
+def _plot_scenario_metric_ci(per_run_df: pd.DataFrame, output_dir: str):
+    """Plot scenario-level mean with 95% CI for primary metrics."""
+    if per_run_df.empty:
+        return
+
+    scenario_order = list(dict.fromkeys(per_run_df["scenario"].tolist()))
+
+    fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+    metric_meta = [
+        ("throughput_rps", "Throughput (req/s)"),
+        ("p95_latency_ms", "P95 Latency (ms)"),
+        ("error_rate_pct", "Error Rate (%)"),
+    ]
+
+    for idx, (metric, ylabel) in enumerate(metric_meta):
+        ax = axes[idx]
+        for arch, color, offset in [
+            ("Monolith", COLORS["monolith"], -0.1),
+            ("Microservices", COLORS["microservices"], 0.1),
+        ]:
+            means = []
+            cis = []
+            xs = []
+            for i, scenario in enumerate(scenario_order):
+                subset = per_run_df[
+                    (per_run_df["scenario"] == scenario)
+                    & (per_run_df["architecture"] == arch)
+                ]
+                if subset.empty:
+                    continue
+                xs.append(i + offset)
+                means.append(float(subset[metric].mean()))
+                cis.append(_confidence_interval_95(subset[metric]))
+
+            ax.errorbar(
+                xs, means, yerr=cis, fmt="o-", capsize=4, color=color, label=arch
+            )
+
+        ax.set_title(metric.replace("_", " ").upper())
+        ax.set_ylabel(ylabel)
+        ax.set_xticks(range(len(scenario_order)))
+        ax.set_xticklabels(scenario_order, rotation=20, ha="right")
+        ax.grid(True, alpha=0.3)
+
+    handles, labels = axes[0].get_legend_handles_labels()
+    fig.legend(handles, labels, loc="upper center", ncol=2)
+    plt.tight_layout(rect=(0, 0, 1, 0.93))
+    plt.savefig(
+        os.path.join(output_dir, "scenario_comparison_ci.png"), bbox_inches="tight"
+    )
+    plt.close()
+    print("  Saved: scenario_comparison_ci.png")
+
+
+def _plot_scenario_boxplots(per_run_df: pd.DataFrame, output_dir: str):
+    """Plot run-level scenario distributions for primary metrics."""
+    if per_run_df.empty:
+        return
+
+    fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+    metric_meta = [
+        ("throughput_rps", "Throughput (req/s)"),
+        ("p95_latency_ms", "P95 Latency (ms)"),
+        ("error_rate_pct", "Error Rate (%)"),
+    ]
+
+    for ax, (metric, ylabel) in zip(axes, metric_meta):
+        sns.boxplot(
+            data=per_run_df,
+            x="scenario",
+            y=metric,
+            hue="architecture",
+            palette={
+                "Monolith": COLORS["monolith"],
+                "Microservices": COLORS["microservices"],
+            },
+            ax=ax,
+        )
+        ax.set_ylabel(ylabel)
+        ax.set_xlabel("Scenario")
+        ax.tick_params(axis="x", rotation=20)
+
+    handles, labels = axes[0].get_legend_handles_labels()
+    for ax in axes:
+        legend = ax.get_legend()
+        if legend is not None:
+            legend.remove()
+    fig.legend(handles, labels, loc="upper center", ncol=2)
+
+    plt.tight_layout(rect=(0, 0, 1, 0.93))
+    plt.savefig(os.path.join(output_dir, "scenario_boxplots.png"), bbox_inches="tight")
+    plt.close()
+    print("  Saved: scenario_boxplots.png")
+
+
+def _plot_pool_exhaustion_heatmaps(per_run_df: pd.DataFrame, output_dir: str):
+    """Plot pool-exhaustion heatmaps (threads x pool size) for key metrics."""
+    subset = per_run_df[per_run_df["scenario"] == "pool_exhaustion"].copy()
+    if (
+        subset.empty
+        or "threads" not in subset.columns
+        or "pool_max_size" not in subset.columns
+    ):
+        return
+
+    subset = subset.dropna(subset=["threads", "pool_max_size"])
+    if subset.empty:
+        return
+
+    for arch in ["Monolith", "Microservices"]:
+        arch_df = subset[subset["architecture"] == arch]
+        if arch_df.empty:
+            continue
+
+        fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+
+        p95_pivot = arch_df.pivot_table(
+            index="pool_max_size",
+            columns="threads",
+            values="p95_latency_ms",
+            aggfunc="mean",
+        )
+        err_pivot = arch_df.pivot_table(
+            index="pool_max_size",
+            columns="threads",
+            values="error_rate_pct",
+            aggfunc="mean",
+        )
+
+        sns.heatmap(p95_pivot, annot=True, fmt=".1f", cmap="YlOrRd", ax=axes[0])
+        axes[0].set_title(f"{arch} - P95 Latency Heatmap")
+        axes[0].set_xlabel("Threads")
+        axes[0].set_ylabel("Pool Max Size")
+
+        sns.heatmap(err_pivot, annot=True, fmt=".2f", cmap="Reds", ax=axes[1])
+        axes[1].set_title(f"{arch} - Error Rate Heatmap")
+        axes[1].set_xlabel("Threads")
+        axes[1].set_ylabel("Pool Max Size")
+
+        plt.tight_layout()
+        file_name = f"pool_exhaustion_heatmap_{arch.lower()}.png"
+        plt.savefig(os.path.join(output_dir, file_name), bbox_inches="tight")
+        plt.close()
+        print(f"  Saved: {file_name}")
+
+
+def _load_scenario_metadata(scenario_dir: Path) -> dict:
+    """Load scenario metadata from scenario_config.csv if present."""
+    metadata_file = scenario_dir / "scenario_config.csv"
+    if not metadata_file.exists():
+        return {}
+
+    try:
+        metadata_df = pd.read_csv(metadata_file)
+        if metadata_df.empty:
+            return {}
+        return metadata_df.iloc[0].to_dict()
+    except Exception as exc:  # pragma: no cover
+        print(f"  Warning: failed to read scenario metadata ({metadata_file}): {exc}")
+        return {}
+
+
+def _analyze_scenario_data(
+    scenario_dir: Path, warmup: int, scenario_name: str
+) -> tuple[
+    pd.DataFrame, pd.DataFrame, pd.DataFrame, list[pd.DataFrame], list[pd.DataFrame]
+]:
+    """Load all runs for one scenario and return run-level + combined dataframes."""
+    monolith_files, microservices_files = discover_experiment_runs(str(scenario_dir))
 
     if not monolith_files:
         raise FileNotFoundError(
-            f"No monolith run files found in: {Path(experiment_dir) / 'monolith'}"
+            f"No monolith run files found in: {scenario_dir / 'monolith'}"
         )
     if not microservices_files:
         raise FileNotFoundError(
-            f"No microservices run files found in: {Path(experiment_dir) / 'microservices'}"
+            f"No microservices run files found in: {scenario_dir / 'microservices'}"
         )
 
-    print("\nDiscovered run files:")
-    print(f"  Monolith:      {len(monolith_files)}")
-    print(f"  Microservices: {len(microservices_files)}")
+    print(f"\nScenario: {scenario_name}")
+    print(f"  Monolith runs:      {len(monolith_files)}")
+    print(f"  Microservices runs: {len(microservices_files)}")
+
+    metadata = _load_scenario_metadata(scenario_dir)
 
     run_rows = []
     monolith_dfs = []
@@ -832,7 +1297,6 @@ def run_experiment(experiment_dir: str, output_dir: str, warmup: int = 0):
         ("Monolith", monolith_files),
         ("Microservices", microservices_files),
     ]:
-        print(f"\nLoading {arch} runs...")
         for file_path in files:
             run_no = _run_number_from_name(file_path)
             df = load_jtl(str(file_path), warmup_seconds=warmup)
@@ -840,6 +1304,11 @@ def run_experiment(experiment_dir: str, output_dir: str, warmup: int = 0):
             m["architecture"] = arch
             m["run"] = run_no
             m["file"] = str(file_path)
+            m["scenario"] = scenario_name
+
+            for key, value in metadata.items():
+                m[key] = value
+
             run_rows.append(m)
 
             if arch == "Monolith":
@@ -847,12 +1316,29 @@ def run_experiment(experiment_dir: str, output_dir: str, warmup: int = 0):
             else:
                 microservices_dfs.append(df)
 
-    per_run_df = pd.DataFrame(run_rows)
-    per_run_df = per_run_df.sort_values(["architecture", "run"]).reset_index(drop=True)
+    per_run_df = (
+        pd.DataFrame(run_rows)
+        .sort_values(["architecture", "run"])
+        .reset_index(drop=True)
+    )
+    monolith_all = _concat_runs_contiguous(monolith_dfs)
+    microservices_all = _concat_runs_contiguous(microservices_dfs)
+    return per_run_df, monolith_all, microservices_all, monolith_dfs, microservices_dfs
 
-    per_run_path = os.path.join(output_dir, "per_run_summary.csv")
-    per_run_df.to_csv(per_run_path, index=False)
-    print(f"\n  Saved: per_run_summary.csv")
+
+def _generate_scenario_outputs(
+    per_run_df: pd.DataFrame,
+    monolith_all: pd.DataFrame,
+    microservices_all: pd.DataFrame,
+    monolith_runs: list[pd.DataFrame],
+    microservices_runs: list[pd.DataFrame],
+    output_dir: str,
+):
+    """Generate outputs for a single scenario directory."""
+    os.makedirs(output_dir, exist_ok=True)
+
+    per_run_df.to_csv(os.path.join(output_dir, "per_run_summary.csv"), index=False)
+    print("  Saved: per_run_summary.csv")
 
     numeric_cols = [
         "total_requests",
@@ -876,9 +1362,7 @@ def run_experiment(experiment_dir: str, output_dir: str, warmup: int = 0):
     )
     aggregate_df.columns = [f"{col}_{stat}" for col, stat in aggregate_df.columns]
     aggregate_df = aggregate_df.reset_index()
-
-    aggregate_path = os.path.join(output_dir, "aggregate_summary.csv")
-    aggregate_df.to_csv(aggregate_path, index=False)
+    aggregate_df.to_csv(os.path.join(output_dir, "aggregate_summary.csv"), index=False)
     print("  Saved: aggregate_summary.csv")
 
     print("\nGenerating multi-run charts...")
@@ -932,10 +1416,6 @@ def run_experiment(experiment_dir: str, output_dir: str, warmup: int = 0):
         output_dir,
     )
 
-    # Always generate full architecture-vs-architecture comparison on combined runs.
-    monolith_all = pd.concat(monolith_dfs, ignore_index=True)
-    microservices_all = pd.concat(microservices_dfs, ignore_index=True)
-
     print("\nGenerating architecture comparison charts (combined runs)...")
     mono_m = compute_metrics(monolith_all)
     micro_m = compute_metrics(microservices_all)
@@ -944,19 +1424,45 @@ def run_experiment(experiment_dir: str, output_dir: str, warmup: int = 0):
 
     plot_latency_comparison(monolith_all, microservices_all, output_dir)
     plot_latency_distribution(monolith_all, microservices_all, output_dir)
-    plot_throughput_over_time(monolith_all, microservices_all, output_dir)
+    plot_throughput_over_time_avg(monolith_runs, microservices_runs, output_dir)
     plot_per_endpoint_comparison(monolith_all, microservices_all, output_dir)
     plot_error_rate_comparison(monolith_all, microservices_all, output_dir)
-    plot_latency_over_time(monolith_all, microservices_all, output_dir)
+    plot_latency_over_time_avg(monolith_runs, microservices_runs, output_dir)
     plot_throughput_bar(monolith_all, microservices_all, output_dir)
     plot_latency_boxplot(monolith_all, microservices_all, output_dir)
-    plot_endpoint_latency_over_time(monolith_all, microservices_all, output_dir)
+    plot_endpoint_latency_over_time_avg(monolith_runs, microservices_runs, output_dir)
 
     print("\nGenerating architecture comparison reports...")
     generate_csv_report(monolith_all, microservices_all, output_dir)
 
-    # Optional scaling chart if thread-scaling files are present.
-    plot_scaling_comparison(experiment_dir, output_dir)
+
+def run_experiment(experiment_dir: str, output_dir: str, warmup: int = 0):
+    """Analyze one experiment directory (one scenario at a time).
+
+    Expected structure:
+      <experiment_dir>/monolith/run_1.jtl
+      <experiment_dir>/microservices/run_1.jtl
+    """
+    os.makedirs(output_dir, exist_ok=True)
+    experiment_path = Path(experiment_dir)
+
+    scenario_name = experiment_path.name
+    per_run_df, monolith_all, microservices_all, monolith_runs, microservices_runs = (
+        _analyze_scenario_data(experiment_path, warmup, scenario_name)
+    )
+    _generate_scenario_outputs(
+        per_run_df,
+        monolith_all,
+        microservices_all,
+        monolith_runs,
+        microservices_runs,
+        output_dir,
+    )
+    _generate_research_tables(per_run_df, output_dir)
+
+    # Scenario-specialized visuals only when applicable.
+    if scenario_name == "pool_exhaustion":
+        _plot_pool_exhaustion_heatmaps(per_run_df, output_dir)
 
     print(f"\nAll outputs saved to: {output_dir}")
 
@@ -967,8 +1473,8 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Analyze full experiment directory (required):
-  python visualize.py --experiment-dir results/2026-04-10_12-34-56
+  # Analyze one scenario directory:
+  python visualize.py --experiment-dir results/2026-04-10_12-34-56/baseline
 
   # With custom output directory:
   python visualize.py --experiment-dir results/2026-04-10_12-34-56 --output results/2026-04-10_12-34-56/charts
@@ -977,7 +1483,7 @@ Examples:
     parser.add_argument(
         "--experiment-dir",
         required=True,
-        help="Experiment directory containing monolith/run_*.jtl and microservices/run_*.jtl",
+        help="Scenario dir containing monolith/run_*.jtl and microservices/run_*.jtl",
     )
     parser.add_argument(
         "--output", default="results/charts", help="Output directory for charts"

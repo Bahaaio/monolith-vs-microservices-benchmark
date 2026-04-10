@@ -13,6 +13,14 @@
 #   RAMP_UP=5          Ramp-up time in seconds (default: 5)
 #   COOL_DOWN=15       Cool-down time between tests in seconds (default: 15)
 #   RUNS=5             Number of runs per architecture (default: 5)
+#   SCENARIOS=baseline,fault_injection,latency_injection,pool_exhaustion
+#                      Comma-separated scenarios to execute in order
+#   FAULT_PERCENT=10   Deterministic fault rate for fault_injection
+#   LATENCY_MS=100     Fixed delay in ms for latency_injection
+#   POOL_MAX_SIZE=3    Hikari max pool size for pool_exhaustion
+#   POOL_TIMEOUT_MS=2000  Hikari connection timeout for pool_exhaustion
+#   POOL_MIN_IDLE=1    Hikari minimum idle for pool_exhaustion
+#   POOL_THREADS=150   JMeter threads for pool_exhaustion scenario
 # =============================================================================
 
 set -euo pipefail
@@ -36,6 +44,25 @@ WARMUP="${WARMUP:-15}"
 RAMP_UP="${RAMP_UP:-5}"
 COOL_DOWN="${COOL_DOWN:-15}"
 RUNS="${RUNS:-5}"
+SCENARIOS="${SCENARIOS:-baseline,fault_injection,latency_injection,pool_exhaustion}"
+
+FAULT_PERCENT="${FAULT_PERCENT:-10}"
+LATENCY_MS="${LATENCY_MS:-100}"
+POOL_MAX_SIZE="${POOL_MAX_SIZE:-3}"
+POOL_TIMEOUT_MS="${POOL_TIMEOUT_MS:-2000}"
+POOL_MIN_IDLE="${POOL_MIN_IDLE:-1}"
+POOL_THREADS="${POOL_THREADS:-150}"
+
+SCENARIO_THREADS="$THREADS"
+SCENARIO_CHAOS_ENABLED="false"
+SCENARIO_CHAOS_MODE="none"
+SCENARIO_CHAOS_FAULT_PERCENT="0"
+SCENARIO_CHAOS_LATENCY_MS="0"
+SCENARIO_POOL_MAX_SIZE="10"
+SCENARIO_POOL_TIMEOUT_MS="2000"
+SCENARIO_POOL_MIN_IDLE="10"
+
+IFS=',' read -r -a SCENARIO_LIST <<< "$SCENARIOS"
 
 # ---------------------------------------------------------------------------
 # Utility functions
@@ -100,6 +127,12 @@ setup() {
 
   info "Installing shared-lib into local Maven repository..."
   mvn -f "$PROJECT_DIR/shared-lib/pom.xml" install --quiet -DskipTests
+
+  info "Building monolith image once..."
+  docker compose -f "$PROJECT_DIR/docker-compose-monolith.yml" build --quiet
+
+  info "Building microservices images once..."
+  docker compose -f "$PROJECT_DIR/docker-compose-microservices.yml" build --quiet
 }
 
 print_header() {
@@ -113,10 +146,72 @@ print_header() {
   info "  Ramp-up:    ${RAMP_UP}s"
   info "  Cool-down:  ${COOL_DOWN}s"
   info "  Runs/Arch:  ${RUNS}"
+  info "  Scenarios:  ${SCENARIOS}"
   info "  Run ID:     $TIMESTAMP"
   info "  Output:     $RUN_DIR"
   info "============================================"
   echo ""
+}
+
+configure_scenario() {
+  local scenario="$1"
+
+  SCENARIO_THREADS="$THREADS"
+  SCENARIO_CHAOS_ENABLED="false"
+  SCENARIO_CHAOS_MODE="none"
+  SCENARIO_CHAOS_FAULT_PERCENT="0"
+  SCENARIO_CHAOS_LATENCY_MS="0"
+  SCENARIO_POOL_MAX_SIZE="10"
+  SCENARIO_POOL_TIMEOUT_MS="2000"
+  SCENARIO_POOL_MIN_IDLE="10"
+
+  case "$scenario" in
+    baseline)
+      ;;
+    fault_injection)
+      SCENARIO_CHAOS_ENABLED="true"
+      SCENARIO_CHAOS_MODE="fault"
+      SCENARIO_CHAOS_FAULT_PERCENT="$FAULT_PERCENT"
+      ;;
+    latency_injection)
+      SCENARIO_CHAOS_ENABLED="true"
+      SCENARIO_CHAOS_MODE="latency"
+      SCENARIO_CHAOS_LATENCY_MS="$LATENCY_MS"
+      ;;
+    pool_exhaustion)
+      SCENARIO_THREADS="$POOL_THREADS"
+      SCENARIO_POOL_MAX_SIZE="$POOL_MAX_SIZE"
+      SCENARIO_POOL_TIMEOUT_MS="$POOL_TIMEOUT_MS"
+      SCENARIO_POOL_MIN_IDLE="$POOL_MIN_IDLE"
+      ;;
+    *)
+      error "Unknown scenario: $scenario"
+      exit 1
+      ;;
+  esac
+}
+
+print_scenario_config() {
+  local scenario="$1"
+  info "Scenario: $scenario"
+  info "  Threads:            $SCENARIO_THREADS"
+  info "  Chaos enabled:      $SCENARIO_CHAOS_ENABLED"
+  info "  Chaos mode:         $SCENARIO_CHAOS_MODE"
+  info "  Chaos fault %:      $SCENARIO_CHAOS_FAULT_PERCENT"
+  info "  Chaos latency ms:   $SCENARIO_CHAOS_LATENCY_MS"
+  info "  Pool max size:      $SCENARIO_POOL_MAX_SIZE"
+  info "  Pool min idle:      $SCENARIO_POOL_MIN_IDLE"
+  info "  Pool timeout ms:    $SCENARIO_POOL_TIMEOUT_MS"
+}
+
+write_scenario_metadata() {
+  local scenario_dir="$1"
+  local scenario="$2"
+
+  cat > "$scenario_dir/scenario_config.csv" <<EOF
+scenario,threads,chaos_enabled,chaos_mode,chaos_fault_percent,chaos_latency_ms,pool_max_size,pool_min_idle,pool_timeout_ms
+$scenario,$SCENARIO_THREADS,$SCENARIO_CHAOS_ENABLED,$SCENARIO_CHAOS_MODE,$SCENARIO_CHAOS_FAULT_PERCENT,$SCENARIO_CHAOS_LATENCY_MS,$SCENARIO_POOL_MAX_SIZE,$SCENARIO_POOL_MIN_IDLE,$SCENARIO_POOL_TIMEOUT_MS
+EOF
 }
 
 # ---------------------------------------------------------------------------
@@ -128,6 +223,7 @@ run_jmeter() {
   local port="$3"
   local output_file="$4"
   local html_report_dir="$5"
+  local threads="$6"
 
   info "Running JMeter for $arch -> $host:$port"
 
@@ -139,7 +235,7 @@ run_jmeter() {
     -Jusers_port="$port" \
     -Jproducts_port="$port" \
     -Jorders_port="$port" \
-    -Jthreads="$THREADS" \
+    -Jthreads="$threads" \
     -Jduration="$DURATION" \
     -Jwarmup="$WARMUP" \
     -Jrampup="$RAMP_UP"
@@ -206,25 +302,34 @@ analyze_results() {
 # Test monolith
 # ---------------------------------------------------------------------------
 test_monolith() {
-  local arch_dir="$RUN_DIR/monolith"
+  local scenario="$1"
+  local scenario_dir="$2"
+  local arch_dir="$scenario_dir/monolith"
   mkdir -p "$arch_dir"
 
-  step "===== Testing MONOLITH architecture ($RUNS runs) ====="
+  step "===== [$scenario] Testing MONOLITH architecture ($RUNS runs) ====="
 
   for run in $(seq 1 "$RUNS"); do
     local output_file="$arch_dir/run_${run}.jtl"
     local html_report_dir="$arch_dir/run_${run}_report"
 
-    step "[Monolith] Run $run/$RUNS - cleaning environment..."
+    step "[$scenario][Monolith] Run $run/$RUNS - cleaning environment..."
     docker compose -f "$PROJECT_DIR/docker-compose-monolith.yml" down -v --remove-orphans 2>/dev/null || true
 
-    step "[Monolith] Run $run/$RUNS - starting stack..."
-    docker compose -f "$PROJECT_DIR/docker-compose-monolith.yml" up --wait --build --quiet-build
+    step "[$scenario][Monolith] Run $run/$RUNS - starting stack..."
+    CHAOS_ENABLED="$SCENARIO_CHAOS_ENABLED" \
+      CHAOS_MODE="$SCENARIO_CHAOS_MODE" \
+      CHAOS_FAULT_PERCENT="$SCENARIO_CHAOS_FAULT_PERCENT" \
+      CHAOS_LATENCY_MS="$SCENARIO_CHAOS_LATENCY_MS" \
+      SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE="$SCENARIO_POOL_MAX_SIZE" \
+      SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE="$SCENARIO_POOL_MIN_IDLE" \
+      SPRING_DATASOURCE_HIKARI_CONNECTION_TIMEOUT="$SCENARIO_POOL_TIMEOUT_MS" \
+      docker compose -f "$PROJECT_DIR/docker-compose-monolith.yml" up --wait
 
-    step "[Monolith] Run $run/$RUNS - benchmarking..."
-    run_jmeter "monolith" "localhost" "8080" "$output_file" "$html_report_dir"
+    step "[$scenario][Monolith] Run $run/$RUNS - benchmarking..."
+    run_jmeter "monolith" "localhost" "8080" "$output_file" "$html_report_dir" "$SCENARIO_THREADS"
 
-    step "[Monolith] Run $run/$RUNS - stopping stack..."
+    step "[$scenario][Monolith] Run $run/$RUNS - stopping stack..."
     docker compose -f "$PROJECT_DIR/docker-compose-monolith.yml" down -v --remove-orphans
 
     if [[ "$run" -lt "$RUNS" ]]; then
@@ -233,32 +338,41 @@ test_monolith() {
     fi
   done
 
-  info "Monolith runs complete."
+  info "[$scenario] Monolith runs complete."
 }
 
 # ---------------------------------------------------------------------------
 # Test microservices
 # ---------------------------------------------------------------------------
 test_microservices() {
-  local arch_dir="$RUN_DIR/microservices"
+  local scenario="$1"
+  local scenario_dir="$2"
+  local arch_dir="$scenario_dir/microservices"
   mkdir -p "$arch_dir"
 
-  step "===== Testing MICROSERVICES architecture ($RUNS runs) ====="
+  step "===== [$scenario] Testing MICROSERVICES architecture ($RUNS runs) ====="
 
   for run in $(seq 1 "$RUNS"); do
     local output_file="$arch_dir/run_${run}.jtl"
     local html_report_dir="$arch_dir/run_${run}_report"
 
-    step "[Microservices] Run $run/$RUNS - cleaning environment..."
+    step "[$scenario][Microservices] Run $run/$RUNS - cleaning environment..."
     docker compose -f "$PROJECT_DIR/docker-compose-microservices.yml" down -v --remove-orphans 2>/dev/null || true
 
-    step "[Microservices] Run $run/$RUNS - starting stack..."
-    docker compose -f "$PROJECT_DIR/docker-compose-microservices.yml" up --wait --build --quiet-build
+    step "[$scenario][Microservices] Run $run/$RUNS - starting stack..."
+    CHAOS_ENABLED="$SCENARIO_CHAOS_ENABLED" \
+      CHAOS_MODE="$SCENARIO_CHAOS_MODE" \
+      CHAOS_FAULT_PERCENT="$SCENARIO_CHAOS_FAULT_PERCENT" \
+      CHAOS_LATENCY_MS="$SCENARIO_CHAOS_LATENCY_MS" \
+      SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE="$SCENARIO_POOL_MAX_SIZE" \
+      SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE="$SCENARIO_POOL_MIN_IDLE" \
+      SPRING_DATASOURCE_HIKARI_CONNECTION_TIMEOUT="$SCENARIO_POOL_TIMEOUT_MS" \
+      docker compose -f "$PROJECT_DIR/docker-compose-microservices.yml" up --wait
 
-    step "[Microservices] Run $run/$RUNS - benchmarking..."
-    run_jmeter "microservices" "localhost" "8080" "$output_file" "$html_report_dir"
+    step "[$scenario][Microservices] Run $run/$RUNS - benchmarking..."
+    run_jmeter "microservices" "localhost" "8080" "$output_file" "$html_report_dir" "$SCENARIO_THREADS"
 
-    step "[Microservices] Run $run/$RUNS - stopping stack..."
+    step "[$scenario][Microservices] Run $run/$RUNS - stopping stack..."
     docker compose -f "$PROJECT_DIR/docker-compose-microservices.yml" down -v --remove-orphans
 
     if [[ "$run" -lt "$RUNS" ]]; then
@@ -267,7 +381,7 @@ test_microservices() {
     fi
   done
 
-  info "Microservices runs complete."
+  info "[$scenario] Microservices runs complete."
 }
 
 main() {
@@ -275,10 +389,24 @@ main() {
   setup
   print_header
 
-  test_monolith
-  test_microservices
+  for scenario in "${SCENARIO_LIST[@]}"; do
+    local_scenario="$(echo "$scenario" | xargs)"
+    if [[ -z "$local_scenario" ]]; then
+      continue
+    fi
 
-  analyze_results "$RUN_DIR" "$WARMUP"
+    configure_scenario "$local_scenario"
+    print_scenario_config "$local_scenario"
+
+    local scenario_dir="$RUN_DIR/$local_scenario"
+    mkdir -p "$scenario_dir"
+    write_scenario_metadata "$scenario_dir" "$local_scenario"
+
+    test_monolith "$local_scenario" "$scenario_dir"
+    test_microservices "$local_scenario" "$scenario_dir"
+
+    analyze_results "$scenario_dir" "$WARMUP"
+  done
 
   echo ""
   info "============================================"
@@ -286,7 +414,7 @@ main() {
   info "============================================"
   info "  Run ID:   $TIMESTAMP"
   info "  Results:  $RUN_DIR/"
-  info "  Charts:   $RUN_DIR/charts/"
+  info "  Charts:   $RUN_DIR/<scenario>/charts/"
   info "============================================"
 }
 

@@ -140,6 +140,10 @@ Repeat for the alternate architecture
 
 A cooldown period is introduced between runs to avoid interference from residual system state.
 
+Experiments are organized by scenario in separate directories (e.g., #raw("results/<timestamp>/baseline") and #raw("results/<timestamp>/fault_injection")), with per-run files for each architecture (#raw("monolith/run_N.jtl") and #raw("microservices/run_N.jtl")). A scenario metadata file (#raw("scenario_config.csv")) records thread count, chaos mode, and connection-pool parameters for reproducibility.
+
+In addition to per-run summaries, the analysis pipeline generates scenario-level comparison tables with mean, standard deviation, and 95% confidence intervals for throughput, P95 latency, and error rate; architecture deltas per scenario; and degradation percentages relative to baseline.
+
 = Conclusion
 
 Both architectures have advantages and disadvantages, all depends on the problem to be solved, with no clear better architecture.
