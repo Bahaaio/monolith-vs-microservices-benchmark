@@ -89,7 +89,7 @@ services:
       resources:
         limits:
           cpus: "0.5"
-          memory: 384M
+          memory: 512M
 
   product-service:
     build:
@@ -119,7 +119,7 @@ services:
       resources:
         limits:
           cpus: "0.5"
-          memory: 384M
+          memory: 512M
 
   order-service:
     build:
@@ -155,7 +155,7 @@ services:
       resources:
         limits:
           cpus: "0.5"
-          memory: 384M
+          memory: 512M
 
   # --- API Gateway (single entry point) ---
   gateway:
@@ -187,7 +187,7 @@ services:
       resources:
         limits:
           cpus: "0.5"
-          memory: 384M
+          memory: 512M
 
 volumes:
   pgdata-user:
