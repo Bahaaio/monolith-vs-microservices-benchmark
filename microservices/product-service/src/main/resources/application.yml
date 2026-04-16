@@ -30,5 +30,5 @@ logging:
 chaos:
   enabled: ${CHAOS_ENABLED:false}
   mode: ${CHAOS_MODE:none}
-  fault-percent: ${CHAOS_FAULT_PERCENT:0}
+  fault-ids: ${CHAOS_FAULT_IDS:}
   latency-ms: ${CHAOS_LATENCY_MS:0}

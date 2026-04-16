@@ -9,7 +9,7 @@ public class ChaosProperties {
 
     private boolean enabled = false;
     private String mode = "none";
-    private int faultPercent = 0;
+    private String faultIds = "";
     private int latencyMs = 0;
 
     public boolean isEnabled() {
@@ -28,12 +28,12 @@ public class ChaosProperties {
         this.mode = mode;
     }
 
-    public int getFaultPercent() {
-        return faultPercent;
+    public String getFaultIds() {
+        return faultIds;
     }
 
-    public void setFaultPercent(int faultPercent) {
-        this.faultPercent = faultPercent;
+    public void setFaultIds(String faultIds) {
+        this.faultIds = faultIds;
     }
 
     public int getLatencyMs() {

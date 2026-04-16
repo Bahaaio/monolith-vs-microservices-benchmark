@@ -15,12 +15,11 @@
 #   RUNS=5             Number of runs per architecture (default: 5)
 #   SCENARIOS=baseline,fault_injection,latency_injection,pool_exhaustion
 #                      Comma-separated scenarios to execute in order
-#   FAULT_PERCENT=10   Deterministic fault rate for fault_injection
+#   FAULT_IDS=3,7,11   Deterministic failing product IDs for fault_injection
 #   LATENCY_MS=100     Fixed delay in ms for latency_injection
-#   POOL_MAX_SIZE=3    Hikari max pool size for pool_exhaustion
+#   POOL_MAX_SIZES=2,5,10  Hikari max pool sizes for pool_exhaustion sweep
 #   POOL_TIMEOUT_MS=2000  Hikari connection timeout for pool_exhaustion
-#   POOL_MIN_IDLE=1    Hikari minimum idle for pool_exhaustion
-#   POOL_THREADS=150   JMeter threads for pool_exhaustion scenario
+#   POOL_RUNS=2        Number of runs per pool size (pool_exhaustion only)
 # =============================================================================
 
 set -euo pipefail
@@ -46,23 +45,23 @@ COOL_DOWN="${COOL_DOWN:-15}"
 RUNS="${RUNS:-5}"
 SCENARIOS="${SCENARIOS:-baseline,fault_injection,latency_injection,pool_exhaustion}"
 
-FAULT_PERCENT="${FAULT_PERCENT:-10}"
+FAULT_IDS="${FAULT_IDS:-3,7,11}"
 LATENCY_MS="${LATENCY_MS:-100}"
-POOL_MAX_SIZE="${POOL_MAX_SIZE:-3}"
+POOL_MAX_SIZES="${POOL_MAX_SIZES:-2,5,10}"
 POOL_TIMEOUT_MS="${POOL_TIMEOUT_MS:-2000}"
-POOL_MIN_IDLE="${POOL_MIN_IDLE:-1}"
-POOL_THREADS="${POOL_THREADS:-150}"
+POOL_RUNS="${POOL_RUNS:-2}"
 
 SCENARIO_THREADS="$THREADS"
 SCENARIO_CHAOS_ENABLED="false"
 SCENARIO_CHAOS_MODE="none"
-SCENARIO_CHAOS_FAULT_PERCENT="0"
+SCENARIO_CHAOS_FAULT_IDS=""
 SCENARIO_CHAOS_LATENCY_MS="0"
 SCENARIO_POOL_MAX_SIZE="10"
 SCENARIO_POOL_TIMEOUT_MS="2000"
-SCENARIO_POOL_MIN_IDLE="10"
+SCENARIO_POOL_MIN_IDLE="2"
 
 IFS=',' read -r -a SCENARIO_LIST <<<"$SCENARIOS"
+IFS=',' read -r -a POOL_MAX_SIZE_LIST <<<"$POOL_MAX_SIZES"
 
 # ---------------------------------------------------------------------------
 # Utility functions
@@ -129,10 +128,10 @@ setup() {
   mvn -f "$PROJECT_DIR/shared-lib/pom.xml" install --quiet -DskipTests
 
   info "Building monolith image once..."
-  docker compose -f "$PROJECT_DIR/docker-compose-monolith.yml" build --quiet
+  # docker compose -f "$PROJECT_DIR/docker-compose-monolith.yml" build --quiet
 
   info "Building microservices images once..."
-  docker compose -f "$PROJECT_DIR/docker-compose-microservices.yml" build --quiet
+  # docker compose -f "$PROJECT_DIR/docker-compose-microservices.yml" build --quiet
 }
 
 print_header() {
@@ -147,6 +146,9 @@ print_header() {
   info "  Cool-down:  ${COOL_DOWN}s"
   info "  Runs/Arch:  ${RUNS}"
   info "  Scenarios:  ${SCENARIOS}"
+  info "  Fault IDs:  ${FAULT_IDS}"
+  info "  Pool sizes: ${POOL_MAX_SIZES}"
+  info "  Pool runs:  ${POOL_RUNS}"
   info "  Run ID:     $TIMESTAMP"
   info "  Output:     $RUN_DIR"
   info "============================================"
@@ -155,22 +157,23 @@ print_header() {
 
 configure_scenario() {
   local scenario="$1"
+  local pool_size="${2:-}"
 
   SCENARIO_THREADS="$THREADS"
   SCENARIO_CHAOS_ENABLED="false"
   SCENARIO_CHAOS_MODE="none"
-  SCENARIO_CHAOS_FAULT_PERCENT="0"
+  SCENARIO_CHAOS_FAULT_IDS=""
   SCENARIO_CHAOS_LATENCY_MS="0"
   SCENARIO_POOL_MAX_SIZE="10"
   SCENARIO_POOL_TIMEOUT_MS="2000"
-  SCENARIO_POOL_MIN_IDLE="10"
+  SCENARIO_POOL_MIN_IDLE="2"
 
   case "$scenario" in
   baseline) ;;
   fault_injection)
     SCENARIO_CHAOS_ENABLED="true"
     SCENARIO_CHAOS_MODE="fault"
-    SCENARIO_CHAOS_FAULT_PERCENT="$FAULT_PERCENT"
+    SCENARIO_CHAOS_FAULT_IDS="$FAULT_IDS"
     ;;
   latency_injection)
     SCENARIO_CHAOS_ENABLED="true"
@@ -178,10 +181,17 @@ configure_scenario() {
     SCENARIO_CHAOS_LATENCY_MS="$LATENCY_MS"
     ;;
   pool_exhaustion)
-    SCENARIO_THREADS="$POOL_THREADS"
-    SCENARIO_POOL_MAX_SIZE="$POOL_MAX_SIZE"
+    if [[ -z "$pool_size" ]]; then
+      error "pool_exhaustion requires a pool size"
+      exit 1
+    fi
+    SCENARIO_POOL_MAX_SIZE="$pool_size"
     SCENARIO_POOL_TIMEOUT_MS="$POOL_TIMEOUT_MS"
-    SCENARIO_POOL_MIN_IDLE="$POOL_MIN_IDLE"
+    if [[ "$pool_size" -le 2 ]]; then
+      SCENARIO_POOL_MIN_IDLE="$pool_size"
+    else
+      SCENARIO_POOL_MIN_IDLE="2"
+    fi
     ;;
   *)
     error "Unknown scenario: $scenario"
@@ -197,7 +207,7 @@ print_scenario_config() {
   info "  Chaos enabled:      $SCENARIO_CHAOS_ENABLED"
   if [[ "$SCENARIO_CHAOS_ENABLED" == "true" ]]; then
     info "  Chaos mode:         $SCENARIO_CHAOS_MODE"
-    info "  Chaos fault %:      $SCENARIO_CHAOS_FAULT_PERCENT"
+    info "  Chaos fault IDs:    $SCENARIO_CHAOS_FAULT_IDS"
     info "  Chaos latency ms:   $SCENARIO_CHAOS_LATENCY_MS"
   fi
   info "  Pool max size:      $SCENARIO_POOL_MAX_SIZE"
@@ -210,8 +220,8 @@ write_scenario_metadata() {
   local scenario="$2"
 
   cat >"$scenario_dir/scenario_config.csv" <<EOF
-scenario,threads,chaos_enabled,chaos_mode,chaos_fault_percent,chaos_latency_ms,pool_max_size,pool_min_idle,pool_timeout_ms
-$scenario,$SCENARIO_THREADS,$SCENARIO_CHAOS_ENABLED,$SCENARIO_CHAOS_MODE,$SCENARIO_CHAOS_FAULT_PERCENT,$SCENARIO_CHAOS_LATENCY_MS,$SCENARIO_POOL_MAX_SIZE,$SCENARIO_POOL_MIN_IDLE,$SCENARIO_POOL_TIMEOUT_MS
+scenario,threads,chaos_enabled,chaos_mode,chaos_fault_ids,chaos_latency_ms,pool_max_size,pool_min_idle,pool_timeout_ms
+$scenario,$SCENARIO_THREADS,$SCENARIO_CHAOS_ENABLED,$SCENARIO_CHAOS_MODE,"$SCENARIO_CHAOS_FAULT_IDS",$SCENARIO_CHAOS_LATENCY_MS,$SCENARIO_POOL_MAX_SIZE,$SCENARIO_POOL_MIN_IDLE,$SCENARIO_POOL_TIMEOUT_MS
 EOF
 }
 
@@ -305,35 +315,36 @@ analyze_results() {
 test_monolith() {
   local scenario="$1"
   local scenario_dir="$2"
+  local scenario_runs="$3"
   local arch_dir="$scenario_dir/monolith"
   mkdir -p "$arch_dir"
 
-  step "===== [$scenario] Testing MONOLITH architecture ($RUNS runs) ====="
+  step "===== [$scenario] Testing MONOLITH architecture ($scenario_runs runs) ====="
 
-  for run in $(seq 1 "$RUNS"); do
+  for run in $(seq 1 "$scenario_runs"); do
     local output_file="$arch_dir/run_${run}.jtl"
     local html_report_dir="$arch_dir/run_${run}_report"
 
-    step "[$scenario][Monolith] Run $run/$RUNS - cleaning environment..."
+    step "[$scenario][Monolith] Run $run/$scenario_runs - cleaning environment..."
     docker compose -f "$PROJECT_DIR/docker-compose-monolith.yml" down -v --remove-orphans 2>/dev/null || true
 
-    step "[$scenario][Monolith] Run $run/$RUNS - starting stack..."
+    step "[$scenario][Monolith] Run $run/$scenario_runs - starting stack..."
     CHAOS_ENABLED="$SCENARIO_CHAOS_ENABLED" \
       CHAOS_MODE="$SCENARIO_CHAOS_MODE" \
-      CHAOS_FAULT_PERCENT="$SCENARIO_CHAOS_FAULT_PERCENT" \
+      CHAOS_FAULT_IDS="$SCENARIO_CHAOS_FAULT_IDS" \
       CHAOS_LATENCY_MS="$SCENARIO_CHAOS_LATENCY_MS" \
       SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE="$SCENARIO_POOL_MAX_SIZE" \
       SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE="$SCENARIO_POOL_MIN_IDLE" \
       SPRING_DATASOURCE_HIKARI_CONNECTION_TIMEOUT="$SCENARIO_POOL_TIMEOUT_MS" \
       docker compose -f "$PROJECT_DIR/docker-compose-monolith.yml" up --wait
 
-    step "[$scenario][Monolith] Run $run/$RUNS - benchmarking..."
+    step "[$scenario][Monolith] Run $run/$scenario_runs - benchmarking..."
     run_jmeter "monolith" "localhost" "8080" "$output_file" "$html_report_dir" "$SCENARIO_THREADS"
 
-    step "[$scenario][Monolith] Run $run/$RUNS - stopping stack..."
+    step "[$scenario][Monolith] Run $run/$scenario_runs - stopping stack..."
     docker compose -f "$PROJECT_DIR/docker-compose-monolith.yml" down -v --remove-orphans
 
-    if [[ "$run" -lt "$RUNS" ]]; then
+    if [[ "$run" -lt "$scenario_runs" ]]; then
       info "Cooling down for $COOL_DOWN seconds before next monolith run..."
       sleep "$COOL_DOWN"
     fi
@@ -348,35 +359,36 @@ test_monolith() {
 test_microservices() {
   local scenario="$1"
   local scenario_dir="$2"
+  local scenario_runs="$3"
   local arch_dir="$scenario_dir/microservices"
   mkdir -p "$arch_dir"
 
-  step "===== [$scenario] Testing MICROSERVICES architecture ($RUNS runs) ====="
+  step "===== [$scenario] Testing MICROSERVICES architecture ($scenario_runs runs) ====="
 
-  for run in $(seq 1 "$RUNS"); do
+  for run in $(seq 1 "$scenario_runs"); do
     local output_file="$arch_dir/run_${run}.jtl"
     local html_report_dir="$arch_dir/run_${run}_report"
 
-    step "[$scenario][Microservices] Run $run/$RUNS - cleaning environment..."
+    step "[$scenario][Microservices] Run $run/$scenario_runs - cleaning environment..."
     docker compose -f "$PROJECT_DIR/docker-compose-microservices.yml" down -v --remove-orphans 2>/dev/null || true
 
-    step "[$scenario][Microservices] Run $run/$RUNS - starting stack..."
+    step "[$scenario][Microservices] Run $run/$scenario_runs - starting stack..."
     CHAOS_ENABLED="$SCENARIO_CHAOS_ENABLED" \
       CHAOS_MODE="$SCENARIO_CHAOS_MODE" \
-      CHAOS_FAULT_PERCENT="$SCENARIO_CHAOS_FAULT_PERCENT" \
+      CHAOS_FAULT_IDS="$SCENARIO_CHAOS_FAULT_IDS" \
       CHAOS_LATENCY_MS="$SCENARIO_CHAOS_LATENCY_MS" \
       SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE="$SCENARIO_POOL_MAX_SIZE" \
       SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE="$SCENARIO_POOL_MIN_IDLE" \
       SPRING_DATASOURCE_HIKARI_CONNECTION_TIMEOUT="$SCENARIO_POOL_TIMEOUT_MS" \
       docker compose -f "$PROJECT_DIR/docker-compose-microservices.yml" up --wait
 
-    step "[$scenario][Microservices] Run $run/$RUNS - benchmarking..."
+    step "[$scenario][Microservices] Run $run/$scenario_runs - benchmarking..."
     run_jmeter "microservices" "localhost" "8080" "$output_file" "$html_report_dir" "$SCENARIO_THREADS"
 
-    step "[$scenario][Microservices] Run $run/$RUNS - stopping stack..."
+    step "[$scenario][Microservices] Run $run/$scenario_runs - stopping stack..."
     docker compose -f "$PROJECT_DIR/docker-compose-microservices.yml" down -v --remove-orphans
 
-    if [[ "$run" -lt "$RUNS" ]]; then
+    if [[ "$run" -lt "$scenario_runs" ]]; then
       info "Cooling down for $COOL_DOWN seconds before next microservices run..."
       sleep "$COOL_DOWN"
     fi
@@ -396,17 +408,40 @@ main() {
       continue
     fi
 
-    configure_scenario "$local_scenario"
-    print_scenario_config "$local_scenario"
+    if [[ "$local_scenario" == "pool_exhaustion" ]]; then
+      for pool_size in "${POOL_MAX_SIZE_LIST[@]}"; do
+        local trimmed_pool_size
+        trimmed_pool_size="$(echo "$pool_size" | xargs)"
+        if [[ -z "$trimmed_pool_size" ]]; then
+          continue
+        fi
 
-    local scenario_dir="$RUN_DIR/$local_scenario"
-    mkdir -p "$scenario_dir"
-    write_scenario_metadata "$scenario_dir" "$local_scenario"
+        local pool_scenario_name="pool_exhaustion_p${trimmed_pool_size}"
+        configure_scenario "pool_exhaustion" "$trimmed_pool_size"
+        print_scenario_config "$pool_scenario_name"
 
-    test_monolith "$local_scenario" "$scenario_dir"
-    test_microservices "$local_scenario" "$scenario_dir"
+        local scenario_dir="$RUN_DIR/$pool_scenario_name"
+        mkdir -p "$scenario_dir"
+        write_scenario_metadata "$scenario_dir" "$pool_scenario_name"
 
-    analyze_results "$scenario_dir" "$WARMUP"
+        test_monolith "$pool_scenario_name" "$scenario_dir" "$POOL_RUNS"
+        test_microservices "$pool_scenario_name" "$scenario_dir" "$POOL_RUNS"
+
+        analyze_results "$scenario_dir" "$WARMUP"
+      done
+    else
+      configure_scenario "$local_scenario"
+      print_scenario_config "$local_scenario"
+
+      local scenario_dir="$RUN_DIR/$local_scenario"
+      mkdir -p "$scenario_dir"
+      write_scenario_metadata "$scenario_dir" "$local_scenario"
+
+      test_monolith "$local_scenario" "$scenario_dir" "$RUNS"
+      test_microservices "$local_scenario" "$scenario_dir" "$RUNS"
+
+      analyze_results "$scenario_dir" "$WARMUP"
+    fi
   done
 
   echo ""

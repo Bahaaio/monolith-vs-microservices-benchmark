@@ -72,7 +72,7 @@ Fault Injection Design
 
 To evaluate system resilience beyond steady-state performance, we introduce controlled fault injection scenarios. These faults are deterministic and reproducible, allowing systematic comparison between architectures.
 
-Fault and latency injection are implemented at the same logical point in both systems: the read path of #raw("GET /products/{id}"). The mechanism is parameterized via application properties (overridden through environment variables during experiments): #raw("chaos.enabled"), #raw("chaos.mode"), #raw("chaos.fault-percent"), and #raw("chaos.latency-ms").
+Fault and latency injection are implemented at the same logical point in both systems: the read path of #raw("GET /products/{id}"). The mechanism is parameterized via application properties (overridden through environment variables during experiments): #raw("chaos.enabled"), #raw("chaos.mode"), #raw("chaos.fault-ids"), and #raw("chaos.latency-ms").
 
 1. Connection Pool Exhaustion
 
@@ -90,9 +90,7 @@ In the monolith, all requests compete for a single connection pool. In the micro
 
 To simulate runtime failures, controlled exceptions are injected into specific components of the system. In the microservices architecture, failures are introduced in a single service (e.g., Product Service), while in the monolith the same failure logic is applied within the corresponding module.
 
-Failures are injected probabilistically (e.g., a fixed percentage of requests), ensuring consistent behavior across runs.
-
-To preserve reproducibility, failure selection is deterministic rather than random: for a product ID $id$, a fault is injected when $id mod 100 < p$, where $p$ is the configured fault percentage. This guarantees identical fault placement across repeated runs and across both architectures.
+Failures are injected deterministically using a fixed configured set of product IDs. For any request to #raw("GET /products/{id}"), a fault is injected if and only if $id$ belongs to the configured set. This guarantees identical fault placement across repeated runs and across both architectures.
 
 This experiment evaluates:
 
