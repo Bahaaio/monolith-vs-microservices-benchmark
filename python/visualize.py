@@ -221,7 +221,15 @@ def plot_throughput_over_time_avg(
         if mean.empty:
             continue
 
-        ax.plot(mean.index, mean.values, label=label, color=color, alpha=0.9)
+        ax.plot(
+            mean.index,
+            mean.values,
+            label=label,
+            color=color,
+            alpha=0.9,
+            marker="o",
+            markersize=3,
+        )
         ax.fill_between(
             mean.index, (mean - ci).values, (mean + ci).values, color=color, alpha=0.2
         )
@@ -261,7 +269,15 @@ def plot_latency_over_time_avg(
         if mean.empty:
             continue
 
-        ax.plot(mean.index, mean.values, label=label, color=color, alpha=0.9)
+        ax.plot(
+            mean.index,
+            mean.values,
+            label=label,
+            color=color,
+            alpha=0.9,
+            marker="o",
+            markersize=3,
+        )
         ax.fill_between(
             mean.index, (mean - ci).values, (mean + ci).values, color=color, alpha=0.2
         )
@@ -326,6 +342,8 @@ def plot_endpoint_latency_over_time_avg(
                 linestyle=linestyle,
                 alpha=alpha,
                 linewidth=2.2,
+                marker="o",
+                markersize=2.5,
             )
 
     ax.set_xlabel("Time (seconds)")
@@ -816,6 +834,20 @@ def _plot_multi_run_series(
     print(f"  Saved: {output_name}")
 
 
+def _scenario_label(scenario: str) -> str:
+    """Return compact display label for scenario names."""
+    s = str(scenario)
+    if s.startswith("pool_exhaustion"):
+        return "Pool"
+    if s == "baseline":
+        return "Baseline"
+    if s == "fault_injection":
+        return "Fault"
+    if s == "latency_injection":
+        return "Latency"
+    return s.replace("_", " ").title()
+
+
 def _plot_multi_run_boxplot(
     df: pd.DataFrame,
     metric: str,
@@ -1035,6 +1067,22 @@ def _generate_cross_scenario_outputs(experiment_root: Path, output_dir: str):
     _plot_pool_exhaustion_sweep(normalized, output_dir)
 
 
+def _rename_run_level_outputs(output_dir: str):
+    """Rename run-level charts with explicit 'across_runs' naming."""
+    mapping = {
+        "throughput_per_run.png": "throughput_across_runs.png",
+        "p95_latency_per_run.png": "p95_latency_across_runs.png",
+        "error_rate_per_run.png": "error_rate_across_runs.png",
+        "throughput_boxplot_runs.png": "throughput_across_runs_boxplot.png",
+        "p95_latency_boxplot_runs.png": "p95_latency_across_runs_boxplot.png",
+        "error_rate_boxplot_runs.png": "error_rate_across_runs_boxplot.png",
+    }
+    for old_name, new_name in mapping.items():
+        old_path = Path(output_dir) / old_name
+        if old_path.exists():
+            old_path.rename(Path(output_dir) / new_name)
+
+
 def _plot_scenario_metric_ci(per_run_df: pd.DataFrame, output_dir: str):
     """Plot scenario-level mean with 95% CI for primary metrics."""
     if per_run_df.empty:
@@ -1044,6 +1092,7 @@ def _plot_scenario_metric_ci(per_run_df: pd.DataFrame, output_dir: str):
     pool_rows = normalized["scenario"].astype(str).str.startswith("pool_exhaustion_p")
     normalized.loc[pool_rows, "scenario"] = "pool_exhaustion"
     scenario_order = list(dict.fromkeys(normalized["scenario"].tolist()))
+    label_map = {s: _scenario_label(s) for s in scenario_order}
 
     fig, axes = plt.subplots(1, 3, figsize=(18, 6))
     metric_meta = [
@@ -1079,7 +1128,9 @@ def _plot_scenario_metric_ci(per_run_df: pd.DataFrame, output_dir: str):
         ax.set_title(metric.replace("_", " ").upper())
         ax.set_ylabel(ylabel)
         ax.set_xticks(range(len(scenario_order)))
-        ax.set_xticklabels(scenario_order, rotation=20, ha="right")
+        ax.set_xticklabels(
+            [label_map[s] for s in scenario_order], rotation=0, ha="center"
+        )
         ax.grid(True, alpha=0.3)
 
     handles, labels = axes[0].get_legend_handles_labels()
@@ -1100,6 +1151,7 @@ def _plot_scenario_boxplots(per_run_df: pd.DataFrame, output_dir: str):
     normalized = per_run_df.copy()
     pool_rows = normalized["scenario"].astype(str).str.startswith("pool_exhaustion_p")
     normalized.loc[pool_rows, "scenario"] = "pool_exhaustion"
+    scenario_order = list(dict.fromkeys(normalized["scenario"].tolist()))
 
     fig, axes = plt.subplots(1, 3, figsize=(18, 6))
     metric_meta = [
@@ -1114,6 +1166,7 @@ def _plot_scenario_boxplots(per_run_df: pd.DataFrame, output_dir: str):
             x="scenario",
             y=metric,
             hue="architecture",
+            order=scenario_order,
             palette={
                 "Monolith": COLORS["monolith"],
                 "Microservices": COLORS["microservices"],
@@ -1122,7 +1175,8 @@ def _plot_scenario_boxplots(per_run_df: pd.DataFrame, output_dir: str):
         )
         ax.set_ylabel(ylabel)
         ax.set_xlabel("Scenario")
-        ax.tick_params(axis="x", rotation=20)
+        ax.set_xticks(range(len(scenario_order)))
+        ax.set_xticklabels([_scenario_label(s) for s in scenario_order], rotation=0)
 
     handles, labels = axes[0].get_legend_handles_labels()
     for ax in axes:
@@ -1411,9 +1465,7 @@ def _generate_scenario_outputs(
     generate_csv_report(monolith_all, microservices_all, output_dir)
     plot_per_endpoint_error_rate(monolith_all, microservices_all, output_dir)
 
-    print("\nGenerating scenario-level research visuals...")
-    _plot_scenario_metric_ci(per_run_df, output_dir)
-    _plot_scenario_boxplots(per_run_df, output_dir)
+    # Cross-scenario visuals are generated only in root-level aggregate mode.
 
 
 def run_experiment(experiment_dir: str, output_dir: str, warmup: int = 0):
@@ -1453,6 +1505,7 @@ def run_experiment(experiment_dir: str, output_dir: str, warmup: int = 0):
         microservices_runs,
         output_dir,
     )
+    _rename_run_level_outputs(output_dir)
     _generate_research_tables(per_run_df, output_dir)
 
     # Scenario-specialized visuals only when applicable.

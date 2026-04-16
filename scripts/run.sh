@@ -424,6 +424,13 @@ main() {
     fi
   done
 
+  step "Running root-level aggregate analysis..."
+  uv run --directory "$PROJECT_DIR/python" \
+    python visualize.py \
+    --experiment-dir "$RUN_DIR" \
+    --warmup "$WARMUP" \
+    --output "$RUN_DIR/charts"
+
   echo ""
   info "============================================"
   info "  Experiment Complete!"
