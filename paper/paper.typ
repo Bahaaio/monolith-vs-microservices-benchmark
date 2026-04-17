@@ -62,6 +62,14 @@ Both systems implement the same domain entities (users, products, and orders) an
 
 To preserve fairness, both deployments use the same dataset and comparable total CPU and memory limits at the application tier.
 
+== Execution Environment
+
+All experiments were executed on a single Linux host for both architectures.
+
+- CPU: 12th Gen Intel Core i5-1235U (10 physical cores, 12 logical threads)
+- Memory: 24 GB RAM (approximately 23 GiB visible to the OS)
+- Platform: Linux x86_64
+
 == Workload Model
 
 Load is generated with Apache JMeter @jmeter using a read-heavy profile intended to represent common catalog traffic.
@@ -104,6 +112,7 @@ For pool stress tests, maximum pool size is varied while request concurrency bei
 - Pool sizes tested: #raw("2, 5, 10")
 - Per-size repeated runs are executed and analyzed independently for both architectures
 - Per-run environment is reset to avoid state carry-over
+- Connection timeout configured at #raw("2000 ms") during pool-stress runs; timeout breaches are counted as request errors
 - Pool and connection limits are interpreted with reference to pool configuration behavior and database connection ceilings @hikaricp @postgres_max_connections
 
 == Metrics and Statistical Treatment
@@ -200,6 +209,11 @@ substantially worse tail latency and higher end-to-end failure in order processi
   caption: [Per-endpoint error rates under latency injection.],
 )
 
+#figure(
+  image("figures/endpoint_latency_over_time.png", width: 100%),
+  caption: [Latency injection time-series by endpoint and architecture (run-averaged).],
+)
+
 == Pool Exhaustion Sweep
 
 Pool-size sweeps reveal architecture-dependent contention behavior.
@@ -207,7 +221,9 @@ Pool-size sweeps reveal architecture-dependent contention behavior.
 - Monolith throughput dropped sharply at pool size #raw("2") compared with #raw("5") and #raw("10")
 - The microservices architecture showed its highest throughput at pool size #raw("2") and its highest observed error rate at pool size #raw("10")
 
-This non-linear pattern suggests that connection-pool tuning should be architecture-specific rather than transferred directly between deployment styles.
+Given the fixed #raw("2000 ms") timeout, queueing pressure can convert into timeout-driven failures; however, the observed error response is non-monotonic and architecture-specific rather than a simple inverse function of pool size.
+
+This pattern suggests that connection-pool tuning should be architecture-specific rather than transferred directly between deployment styles.
 
 #figure(
   image("figures/pool_sweep_metrics.png", width: 100%),
