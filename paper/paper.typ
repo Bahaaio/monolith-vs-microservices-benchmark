@@ -136,6 +136,18 @@ repeated-run aggregates, confidence intervals, and architecture deltas.
 
 Unless noted otherwise, numeric scores in this section come from the generated summary tables @scenario_architecture_stats_table @architecture_delta_by_scenario_table @pool_sweep_summary_table.
 
+Cross-scenario aggregates provide a compact view of architecture-level differences across baseline, failure, latency, and pool-stress conditions.
+
+#figure(
+  image("figures/scenario_comparison_ci.png", width: 100%),
+  caption: [Cross-scenario comparison of throughput, P95 latency, and error rate (mean with 95% confidence intervals).],
+)
+
+#figure(
+  image("figures/scenario_boxplots.png", width: 100%),
+  caption: [Run-level metric distributions by scenario and architecture.],
+)
+
 == Baseline Performance
 
 Under baseline load, the monolith achieved substantially higher throughput and lower tail latency than the microservices deployment.
@@ -149,13 +161,13 @@ Under baseline load, the monolith achieved substantially higher throughput and l
 These differences are consistent across repeated runs, with narrow confidence intervals for both architectures.
 
 #figure(
-  image("figures/scenario_comparison_ci.png", width: 100%),
-  caption: [Cross-scenario comparison of throughput, P95 latency, and error rate (mean with 95% confidence intervals).],
+  image("figures/per_endpoint_comparison.png", width: 100%),
+  caption: [Baseline endpoint comparison between architectures (throughput and latency characteristics by API path).],
 )
 
 #figure(
-  image("figures/scenario_boxplots.png", width: 100%),
-  caption: [Run-level metric distributions by scenario and architecture.],
+  image("figures/throughput_over_time.png", width: 100%),
+  caption: [Baseline throughput over normalized run time (mean across runs).],
 )
 
 == Deterministic Endpoint Failure
@@ -232,5 +244,19 @@ Source code and experiment automation are available at:
 In this benchmark, the monolith delivered higher baseline throughput and lower tail latency, and it was less sensitive to injected downstream degradation. The microservices variant exposed stronger propagation and tail effects under stress, alongside architecture-dependent data-tier tuning behavior.
 
 These results do not imply a universal winner. Microservices still offer organizational advantages, but they require stronger operational discipline and explicit resource governance to achieve stable runtime behavior. Architecture decisions should therefore be based on workload profile, team structure, reliability targets, and operational maturity rather than trend adoption.
+
+= Appendix
+
+Additional diagnostic visualizations are provided for transparency and replication support.
+
+#figure(
+  image("figures/latency_distribution.png", width: 100%),
+  caption: [Baseline latency distribution by architecture.],
+)
+
+#figure(
+  image("figures/p95_latency_across_runs_boxplot.png", width: 100%),
+  caption: [Baseline run-level P95 latency variability across repeated runs.],
+)
 
 #bibliography("references.bib", title: "References", style: "ieee")
