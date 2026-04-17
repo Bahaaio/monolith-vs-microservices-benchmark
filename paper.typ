@@ -44,103 +44,85 @@ While 85% of large organizations have adopted microservices for their perceived 
 
 = Methodology
 
-System Architecture
+== Study Design
 
-To ensure a fair comparison, two functionally equivalent systems were implemented: a monolithic architecture and a microservices architecture. Both systems implement the same e-commerce domain consisting of three core entities: Users, Products, and Orders. Each system exposes identical REST APIs for retrieving users and products, and for creating orders.
+This study follows a controlled comparative design. We evaluate a monolithic implementation and a microservices implementation of the same e-commerce workload under identical request patterns and equivalent application-level compute budgets. The goal is to isolate architectural effects on latency, throughput, error behavior, and database contention.
 
-The monolithic system is deployed as a single Spring Boot application with a shared database and a single database connection pool. In contrast, the microservices system is composed of three independent services (User Service, Product Service, and Order Service) behind an API Gateway. Each service maintains its own database and connection pool, and inter-service communication is performed synchronously via HTTP.
+== Systems Under Test
 
-To ensure fairness, both architectures were allocated equivalent total system resources (CPU and memory), and identical datasets were used in all experiments.
+Both systems implement the same domain entities (users, products, and orders) and the same business rules for read and order-creation paths.
 
-Load Testing Setup
+- The monolith is a single Spring Boot service backed by one relational database and one application connection pool.
+- The microservices system is composed of user, product, and order services behind an API gateway; each service owns its database and connection pool.
+- Inter-service communication in the microservices variant is synchronous HTTP.
 
-Performance evaluation was conducted using Apache JMeter. The workload simulates a typical read-heavy e-commerce scenario with the following distribution:
+To preserve fairness, the two deployments use the same dataset and comparable total CPU and memory limits at the application tier.
 
-50% GET /products/{id}
-30% GET /users/{id}
-20% POST /orders
+== Workload Model
 
-Each test run consists of:
+Load is generated with Apache JMeter using a read-heavy profile intended to represent typical catalog traffic.
 
-a ramp-up period to gradually introduce load
-a warm-up phase (excluded from analysis)
-a steady-state execution phase where metrics are collected
+#table(
+  columns: (2fr, 1fr),
+  align: (left, center),
+  table.header([Operation class], [Share]),
+  [Product reads], [50%],
+  [User reads], [30%],
+  [Order creation], [20%],
+)
 
-The number of concurrent users (threads) is varied across experiments to evaluate system behavior under increasing load.
+Each run consists of ramp-up, warm-up, and steady-state phases. Warm-up samples are excluded from all reported metrics.
 
-Fault Injection Design
+== Experimental Scenarios
 
-To evaluate system resilience beyond steady-state performance, we introduce controlled fault injection scenarios. These faults are deterministic and reproducible, allowing systematic comparison between architectures.
+We evaluate four scenario families.
 
-Fault and latency injection are implemented at the same logical point in both systems: the read path of #raw("GET /products/{id}"). The mechanism is parameterized via application properties (overridden through environment variables during experiments): #raw("chaos.enabled"), #raw("chaos.mode"), #raw("chaos.fault-ids"), and #raw("chaos.latency-ms").
+#table(
+  columns: (2fr, 1.2fr, 3fr),
+  align: (left, center, left),
+  table.header([Scenario], [Intent], [Configuration summary]),
+  [Baseline], [Reference], [No injected faults or delays; default pool settings],
+  [Deterministic endpoint failure], [Failure propagation], [Product-read failures injected for a fixed ID set],
+  [Latency injection], [Performance degradation], [Fixed delay injected on product-read path],
+  [Pool exhaustion sweep],
+  [Data-tier contention],
+  [Connection pool sizes swept across #raw("2, 5, 10") with fixed request load],
+)
 
-1. Connection Pool Exhaustion
+Fault and latency injection are implemented at the same logical point in both architectures (product-read path) and controlled by runtime properties: #raw("chaos.enabled"), #raw("chaos.mode"), #raw("chaos.fault-ids"), and #raw("chaos.latency-ms").
 
-Connection pool exhaustion is simulated by increasing the number of concurrent requests while keeping the database connection pool size fixed. This creates contention for database connections, leading to queueing delays and potential request failures.
+For deterministic failure runs, a request fails if and only if its product ID belongs to the configured fixed set. This avoids random sampling noise and guarantees reproducibility across repeated runs and across architectures.
 
-The objective of this experiment is to identify:
+== Connection Pool Exhaustion Protocol
 
-the load threshold at which performance degradation occurs
-the impact on latency distribution (particularly tail latency)
-differences in how resource contention manifests in monolithic vs microservice systems
+For pool stress tests, the maximum pool size is varied while request concurrency is held constant. This isolates the effect of database-handle scarcity from other factors.
 
-In the monolith, all requests compete for a single connection pool. In the microservices architecture, each service maintains its own pool, potentially isolating or redistributing contention.
+- Pool sizes tested: #raw("2, 5, 10")
+- Per-size repeated runs are executed and analyzed independently for both architectures
+- Per-run environment is reset to avoid state carry-over
 
-2. Partial Service Failure
+== Metrics and Statistical Treatment
 
-To simulate runtime failures, controlled exceptions are injected into specific components of the system. In the microservices architecture, failures are introduced in a single service (e.g., Product Service), while in the monolith the same failure logic is applied within the corresponding module.
+The primary outcome variables are:
 
-Failures are injected deterministically using a fixed configured set of product IDs. For any request to #raw("GET /products/{id}"), a fault is injected if and only if $id$ belongs to the configured set. This guarantees identical fault placement across repeated runs and across both architectures.
+- Throughput (requests/second)
+- Latency percentiles (P50, P95, P99)
+- Error rate and error count
+- Time-series behavior for throughput and tail latency
 
-This experiment evaluates:
+For each scenario, results are reported at run level and as architecture-level aggregates. The analysis pipeline computes means, standard deviations, and 95% confidence intervals, then reports architecture deltas and degradation relative to baseline when baseline data is available.
 
-how failures propagate across system components
-the impact on overall system availability and error rate
-differences in fault isolation between architectures
+== Execution and Reproducibility
 
-In microservices, failures may remain localized or propagate through inter-service calls. In contrast, in a monolith, failures occur within a shared process and may affect all requests uniformly.
+Each run is executed in isolation using Docker Compose.
 
-3. Artificial Latency Injection
+1. Start architecture and wait for health checks
+2. Execute the JMeter plan
+3. Persist raw #raw(".jtl") output and HTML report
+4. Tear down containers and volumes
+5. Apply cooldown before the next run
 
-In addition to hard failures, we simulate performance degradation by introducing artificial delays (e.g., thread sleep) in selected components. This models real-world scenarios such as slow database queries or network latency.
-
-Latency injection uses a fixed delay value configured through #raw("chaos.latency-ms") and applied on every request to #raw("GET /products/{id}") while #raw("chaos.mode=latency") is active.
-
-This experiment focuses on:
-
-cascading latency effects across dependent components
-queue buildup and thread contention
-system behavior under degraded but non-failing conditions
-
-This scenario is particularly relevant for microservices, where inter-service communication amplifies latency due to network overhead.
-
-Metrics Collected
-
-For each experiment, the following metrics are collected:
-
-Throughput (requests per second)
-Latency percentiles (P50, P95, P99)
-Error rate (percentage of failed requests)
-Latency over time (to observe degradation patterns)
-
-Warm-up periods are excluded from analysis to ensure measurements reflect steady-state behavior.
-
-Experimental Procedure
-
-Each experiment is conducted in isolation for both architectures using identical configurations. The procedure is as follows:
-
-Deploy the system using Docker Compose
-Wait for all services to become healthy
-Execute the JMeter test plan
-Collect raw performance data
-Tear down the environment
-Repeat for the alternate architecture
-
-A cooldown period is introduced between runs to avoid interference from residual system state.
-
-Experiments are organized by scenario in separate directories (e.g., #raw("results/<timestamp>/baseline") and #raw("results/<timestamp>/fault_injection")), with per-run files for each architecture (#raw("monolith/run_N.jtl") and #raw("microservices/run_N.jtl")). A scenario metadata file (#raw("scenario_config.csv")) records thread count, chaos mode, and connection-pool parameters for reproducibility.
-
-In addition to per-run summaries, the analysis pipeline generates scenario-level comparison tables with mean, standard deviation, and 95% confidence intervals for throughput, P95 latency, and error rate; architecture deltas per scenario; and degradation percentages relative to baseline.
+Outputs are organized by timestamp and scenario for traceability. Scenario metadata is persisted in #raw("scenario_config.csv"), and raw run files are stored as #raw("monolith/run_N.jtl") and #raw("microservices/run_N.jtl"). Scenario-specific charts are generated under #raw("results/<timestamp>/<scenario>/charts"), while cross-scenario aggregate reports are generated under #raw("results/<timestamp>/charts").
 
 = Conclusion
 
