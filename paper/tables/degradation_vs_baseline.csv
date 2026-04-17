@@ -1,0 +1,7 @@
+scenario,architecture,throughput_rps_mean,baseline_throughput_rps_mean,throughput_rps_change_pct_vs_baseline,p95_latency_ms_mean,baseline_p95_latency_ms_mean,p95_latency_ms_change_pct_vs_baseline,error_rate_pct_mean,baseline_error_rate_pct_mean,error_rate_pct_change_pct_vs_baseline
+fault_injection,Microservices,989.9467,1011.2433,-2.106,196.3333,199.0,-1.34,0.0326,0.0051,534.4156
+latency_injection,Microservices,78.47,1011.2433,-92.2402,3491.8667,199.0,1654.7069,12.9426,0.0051,252029.2208
+pool_exhaustion,Microservices,1095.2122,1011.2433,8.3035,194.7778,199.0,-2.1217,0.0126,0.0051,146.3203
+fault_injection,Monolith,3606.22,3558.2067,1.3494,87.6667,88.0,-0.3788,0.0,0.0,
+latency_injection,Monolith,68.3067,3558.2067,-98.0803,2001.0,88.0,2173.8636,6.5407,0.0,
+pool_exhaustion,Monolith,3066.7878,3558.2067,-13.8109,80.3333,88.0,-8.7121,0.0,0.0,

@@ -1,0 +1,5 @@
+scenario,throughput_rps_monolith_mean,throughput_rps_microservices_mean,throughput_rps_delta_abs,throughput_rps_delta_pct_vs_monolith,p95_latency_ms_monolith_mean,p95_latency_ms_microservices_mean,p95_latency_ms_delta_abs,p95_latency_ms_delta_pct_vs_monolith,error_rate_pct_monolith_mean,error_rate_pct_microservices_mean,error_rate_pct_delta_abs,error_rate_pct_delta_pct_vs_monolith
+baseline,3558.2067,1011.2433,-2546.9633,-71.58,88.0,199.0,111.0,126.1364,0.0,0.0051,0.0051,
+fault_injection,3606.22,989.9467,-2616.2733,-72.5489,87.6667,196.3333,108.6667,123.9544,0.0,0.0326,0.0326,
+latency_injection,68.3067,78.47,10.1633,14.879,2001.0,3491.8667,1490.8667,74.5061,6.5407,12.9426,6.4019,97.8774
+pool_exhaustion,3066.7878,1095.2122,-1971.5756,-64.288,80.3333,194.7778,114.4444,142.462,0.0,0.0126,0.0126,
