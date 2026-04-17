@@ -128,10 +128,10 @@ setup() {
   mvn -f "$PROJECT_DIR/shared-lib/pom.xml" install --quiet -DskipTests
 
   info "Building monolith image once..."
-  docker compose -f "$PROJECT_DIR/docker-compose-monolith.yml" build --quiet
+  docker compose -f "$PROJECT_DIR/docker-compose-monolith.yml" build
 
   info "Building microservices images once..."
-  docker compose -f "$PROJECT_DIR/docker-compose-microservices.yml" build --quiet
+  docker compose -f "$PROJECT_DIR/docker-compose-microservices.yml" build
 }
 
 print_header() {
