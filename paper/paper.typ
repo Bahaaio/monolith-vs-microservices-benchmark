@@ -18,17 +18,17 @@
 
 = Abstract
 
-Microservices are a widely adopted architecture in large systems for organizational scalability and service-level autonomy. However, this architectural style can introduce data-tier and network-level costs that are not 
-always visible in high-level design discussions. This work compares monolithic and microservices 
-implementations of the same e-commerce workload under controlled, repeatable experiments. Both 
-systems share equivalent business logic, identical datasets, and comparable application-level compute 
+Microservices are a widely adopted architecture in large systems for organizational scalability and service-level autonomy. However, this architectural style can introduce data-tier and network-level costs that are not
+always visible in high-level design discussions. This work compares monolithic and microservices
+implementations of the same e-commerce workload under controlled, repeatable experiments. Both
+systems share equivalent business logic, identical datasets, and comparable application-level compute
 budgets.
-It evaluate four scenario families: baseline load, deterministic endpoint failure, fixed latency injection, 
-and database connection pool exhaustion. Measurements are collected using Apache JMeter and ana￾lyzed using per-run and cross-scenario statistics, including means, confidence intervals, architecture 
+It evaluate four scenario families: baseline load, deterministic endpoint failure, fixed latency injection,
+and database connection pool exhaustion. Measurements are collected using Apache JMeter and ana￾lyzed using per-run and cross-scenario statistics, including means, confidence intervals, architecture
 deltas, and degradation relative to baseline.
-Results show that the monolith delivers substantially higher baseline throughput and lower tail 
-latency in our environment, while microservices exhibit greater sensitivity to downstream degradation 
-in order-processing paths. Under latency injection, both architectures degrade sharply, but microser￾vices show stronger tail-latency inflation and higher error rates. Pool-size sweeps reveal non-linear 
+Results show that the monolith delivers substantially higher baseline throughput and lower tail
+latency in our environment, while microservices exhibit greater sensitivity to downstream degradation
+in order-processing paths. Under latency injection, both architectures degrade sharply, but microser￾vices show stronger tail-latency inflation and higher error rates. Pool-size sweeps reveal non-linear
 contention behavior and architecture-dependent tuning effects, reinforcing the need for explicit data￾tier capacity planning.
 
 = Introduction
@@ -140,7 +140,7 @@ Outputs are organized by timestamp and scenario for traceability. Scenario metad
 
 = Experimental Results
 
-This section reports the final experimental campaign. Scenario-level statistics are summarized with 
+This section reports the final experimental campaign. Scenario-level statistics are summarized with
 repeated-run aggregates, confidence intervals, and architecture deltas.
 
 Unless noted otherwise, numeric scores in this section come from the generated summary tables @scenario_architecture_stats_table @architecture_delta_by_scenario_table @pool_sweep_summary_table.
@@ -201,7 +201,7 @@ Latency injection produced the strongest degradation in both architectures, with
 - Monolith: #raw("68.3 req/s"), #raw("P95 2001 ms"), #raw("6.54% errors")
 - Microservices: #raw("78.5 req/s"), #raw("P95 3491.9 ms"), #raw("12.94% errors")
 
-Although throughput became similarly low in both systems under this stress, microservices exhibited 
+Although throughput became similarly low in both systems under this stress, microservices exhibited
 substantially worse tail latency and higher end-to-end failure in order processing.
 
 #figure(
@@ -257,9 +257,11 @@ Source code and experiment automation are available at:
 
 = Conclusion
 
-In this benchmark, the monolith delivered higher baseline throughput and lower tail latency, and it was less sensitive to injected downstream degradation. The microservices variant exposed stronger propagation and tail effects under stress, alongside architecture-dependent data-tier tuning behavior.
+This benchmark shows a consistent baseline efficiency advantage for the monolith under the tested workload and resource budget, with higher throughput and lower tail latency. Under injected stress, degradation patterns differ by architecture: microservices preserve partial isolation on unrelated paths, but composite order flows show stronger error amplification and tail inflation.
 
-These results do not imply a universal winner. Microservices still offer organizational advantages, but they require stronger operational discipline and explicit resource governance to achieve stable runtime behavior. Architecture decisions should therefore be based on workload profile, team structure, reliability targets, and operational maturity rather than trend adoption.
+Pool-stress results further indicate that tuning is architecture-specific. Throughput, latency, and timeout-driven error behavior do not change monotonically with pool size, so connection and timeout settings should be validated empirically for each deployment style rather than copied directly between systems.
+
+These findings do not establish a universal winner. Monoliths remain strong for performance efficiency and lower operational overhead in this setting, while microservices retain organizational and deployment flexibility when supported by mature reliability controls. Architecture selection is therefore best treated as a workload- and operations-driven decision, guided by explicit performance targets, failure budgets, and reproducible benchmarking.
 
 = Appendix
 
