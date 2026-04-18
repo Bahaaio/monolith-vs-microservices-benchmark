@@ -1,4 +1,4 @@
-#set page(paper: "a4", margin: 2.5cm)
+#set page(paper: "a4", margin: 2.5cm, numbering: "1")
 #set par(justify: true)
 #set heading(numbering: "1.")
 
@@ -13,8 +13,6 @@
   #authors \
   #institution
 ]
-
-#v(1em)
 
 = Abstract
 
