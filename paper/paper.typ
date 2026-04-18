@@ -31,11 +31,11 @@ contention behavior and architecture-dependent tuning effects, reinforcing the n
 
 = Introduction
 
-The term “monolith” implies something large and glacial, which perfectly implies the truth of a monolith architecture for software design, as it has one codebase which makes it easier to: deployment, tracing, , local testing and it has a better performance than microservices at most cases #link("https://www.atlassian.com/microservices/microservices-architecture/microservices-vs-monolith")[\[1\]].
-This advantages makes monolithic architecture a very reasonable choice for basic projects or startups as it also easy to learn , cheap and requires less technical knowledge to use. On the other hand adapting to microservices can be complex and costly and needs deeper domain knowledge, as discussed in Section 5 (p. 772) #link("https://www.sciencedirect.com/science/article/pii/S1877050926006411")[\[2\]].
-But every rose has its thorn, monolithic can be a bad choice in the long term as it can be difficult to adapt to new technologies because its tightly coupled and usually the monolithic application must be retooled completely to accept the new addition, in addition to that scalability is a big drawback in Monolithic applications as you may have to rebuild the system to expand its scale#link("https://www.volitioncapital.com/news/microservices-software-architecture/")[\[3\]].
+The term "monolith" implies something large and tightly integrated, which reflects a key practical advantage of monolithic software design: one codebase usually simplifies deployment, tracing, and local testing, and often delivers strong baseline performance in many environments @atlassian_microservices_vs_monolith @fowler_monolith_first.
+These properties make monolithic architecture a practical choice for early-stage products, where development speed, lower operational complexity, and lower platform overhead are important. In contrast, moving to microservices can be complex and costly and usually requires stronger domain boundaries and operational maturity @taibi2017processes @jamshidi2018microservices.
+However, monolithic systems can become harder to evolve at large scale. Tight coupling can slow technology adoption and independent scaling, and major changes may require broad system-level modification rather than service-level evolution @newman_microservices @dragoni_microservices.
 
-Because of monolithic architecture drawbacks which can significantly affect projects, more and more companies shift to microservices architecture which tends to splits the application into smaller sized independent parts so that each part has its own responsibility, each part is called a service and all services serve the application as a whole#link("https://www.volitioncapital.com/news/microservices-software-architecture/")[\[4\]].
+Because of these long-term limitations, many organizations shift toward microservices, which decompose the system into smaller independently deployable services with clearer responsibility boundaries @newman_microservices @richardson_microservices.
 
 However, the decentralization inherent in microservices does not come without operational costs. While functional logic is easily partitioned, the data tier often remains a point of contention. In a monolithic system, database interactions are managed through a unified connection pool, optimizing resource utilization. Conversely, a microservices deployment requires each independent service to maintain its own connection overhead. As the number of services scales, this leads to 'connection sprawl,' where the aggregate demand for database handles can exhaust system resources even if the underlying hardware is underutilized.
 
@@ -251,7 +251,7 @@ From an engineering perspective, these findings suggest that microservices requi
 
 Source code and experiment automation are available at:
 
-#link("https://github.com/Bahaaio/monolith-vs-microservices-benchmark")[https://github.com/Bahaaio/monolith-vs-microservices-benchmark] @repo_artifact.
+the project repository @repo_artifact.
 
 = Conclusion
 
