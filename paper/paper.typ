@@ -22,12 +22,12 @@ implementations of the same e-commerce workload under controlled, repeatable exp
 systems share equivalent business logic, identical datasets, and comparable application-level compute
 budgets.
 It evaluate four scenario families: baseline load, deterministic endpoint failure, fixed latency injection,
-and database connection pool exhaustion. Measurements are collected using Apache JMeter and ana￾lyzed using per-run and cross-scenario statistics, including means, confidence intervals, architecture
+and database connection pool exhaustion. Measurements are collected using Apache JMeter and analyzed using per-run and cross-scenario statistics, including means, confidence intervals, architecture
 deltas, and degradation relative to baseline.
 Results show that the monolith delivers substantially higher baseline throughput and lower tail
 latency in our environment, while microservices exhibit greater sensitivity to downstream degradation
-in order-processing paths. Under latency injection, both architectures degrade sharply, but microser￾vices show stronger tail-latency inflation and higher error rates. Pool-size sweeps reveal non-linear
-contention behavior and architecture-dependent tuning effects, reinforcing the need for explicit data￾tier capacity planning.
+in order-processing paths. Under latency injection, both architectures degrade sharply, but microservices show stronger tail-latency inflation and higher error rates. Pool-size sweeps reveal non-linear
+contention behavior and architecture-dependent tuning effects, reinforcing the need for explicit data-tier capacity planning.
 
 = Introduction
 
@@ -143,17 +143,17 @@ repeated-run aggregates, confidence intervals, and architecture deltas.
 
 Unless noted otherwise, numeric scores in this section come from the generated summary tables @scenario_architecture_stats_table @architecture_delta_by_scenario_table @pool_sweep_summary_table.
 
-Cross-scenario aggregates provide a compact view of architecture-level differences across baseline, failure, latency, and pool-stress conditions.
+Cross-scenario aggregates provide a compact view of architecture-level differences across baseline, failure, latency, and pool-stress conditions, as shown in @fig-scenario-comparison and @fig-scenario-boxplots.
 
 #figure(
   image("figures/scenario_comparison_ci.png", width: 100%),
   caption: [Cross-scenario comparison of throughput, P95 latency, and error rate (mean with 95% confidence intervals).],
-)
+) <fig-scenario-comparison>
 
 #figure(
   image("figures/scenario_boxplots.png", width: 100%),
   caption: [Run-level metric distributions by scenario and architecture.],
-)
+) <fig-scenario-boxplots>
 
 == Baseline Performance
 
@@ -165,17 +165,17 @@ Under baseline load, the monolith achieved substantially higher throughput and l
 - Monolith mean P95: #raw("88 ms")
 - Microservices mean P95: #raw("199 ms")
 
-These differences are consistent across repeated runs, with narrow confidence intervals for both architectures.
+These differences are consistent across repeated runs, with narrow confidence intervals for both architectures; baseline endpoint behavior and throughput stability are shown in @fig-baseline-endpoint-comparison and @fig-baseline-throughput-over-time.
 
 #figure(
   image("figures/per_endpoint_comparison.png", width: 100%),
   caption: [Baseline endpoint comparison between architectures (throughput and latency characteristics by API path).],
-)
+) <fig-baseline-endpoint-comparison>
 
 #figure(
   image("figures/throughput_over_time.png", width: 100%),
   caption: [Baseline throughput over normalized run time (mean across runs).],
-)
+) <fig-baseline-throughput-over-time>
 
 == Deterministic Endpoint Failure
 
@@ -185,12 +185,12 @@ In deterministic fault mode (fixed product ID set), monolith behavior remained c
 - Microservices mean error rate increased to #raw("0.0326%")
 - Most microservices errors appeared in order creation, not in direct product reads
 
-Endpoint-level error decomposition shows that failures propagated primarily through the order path.
+Endpoint-level error decomposition shows that failures propagated primarily through the order path, as illustrated in @fig-fault-per-endpoint-error-rate.
 
 #figure(
   image("figures/fault_per_endpoint_error_rate.png", width: 85%),
   caption: [Per-endpoint error rates during deterministic endpoint failure runs.],
-)
+) <fig-fault-per-endpoint-error-rate>
 
 == Latency Injection
 
@@ -200,17 +200,17 @@ Latency injection produced the strongest degradation in both architectures, with
 - Microservices: #raw("78.5 req/s"), #raw("P95 3491.9 ms"), #raw("12.94% errors")
 
 Although throughput became similarly low in both systems under this stress, microservices exhibited
-substantially worse tail latency and higher end-to-end failure in order processing.
+substantially worse tail latency and higher end-to-end failure in order processing. Endpoint-level errors are shown in @fig-latency-per-endpoint-error-rate, and temporal endpoint latency behavior is shown in @fig-latency-endpoint-over-time.
 
 #figure(
   image("figures/latency_per_endpoint_error_rate.png", width: 85%),
   caption: [Per-endpoint error rates under latency injection.],
-)
+) <fig-latency-per-endpoint-error-rate>
 
 #figure(
   image("figures/endpoint_latency_over_time.png", width: 100%),
   caption: [Latency injection time-series by endpoint and architecture (run-averaged).],
-)
+) <fig-latency-endpoint-over-time>
 
 == Pool Exhaustion Sweep
 
@@ -221,12 +221,12 @@ Pool-size sweeps reveal architecture-dependent contention behavior.
 
 Given the fixed #raw("2000 ms") timeout, queueing pressure can convert into timeout-driven failures; however, the observed error response is non-monotonic and architecture-specific rather than a simple inverse function of pool size.
 
-This pattern suggests that connection-pool tuning should be architecture-specific rather than transferred directly between deployment styles.
+This pattern suggests that connection-pool tuning should be architecture-specific rather than transferred directly between deployment styles, consistent with the sweep trends in @fig-pool-sweep-metrics.
 
 #figure(
   image("figures/pool_sweep_metrics.png", width: 100%),
   caption: [Pool-size sweep: throughput, P95 latency, and error rate versus maximum pool size.],
-)
+) <fig-pool-sweep-metrics>
 
 = Discussion
 
@@ -263,16 +263,16 @@ These findings do not establish a universal winner. Monoliths remain strong for 
 
 = Appendix
 
-Additional diagnostic visualizations are provided for transparency and replication support.
+Additional diagnostic visualizations are provided for transparency and replication support; distributional and run-level tail-latency variability views are shown in @fig-appendix-latency-distribution and @fig-appendix-p95-boxplot.
 
 #figure(
   image("figures/latency_distribution.png", width: 100%),
   caption: [Baseline latency distribution by architecture.],
-)
+) <fig-appendix-latency-distribution>
 
 #figure(
   image("figures/p95_latency_across_runs_boxplot.png", width: 100%),
   caption: [Baseline run-level P95 latency variability across repeated runs.],
-)
+) <fig-appendix-p95-boxplot>
 
 #bibliography("references.bib", title: "References", style: "ieee")
