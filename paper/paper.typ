@@ -14,20 +14,13 @@
   #institution
 ]
 
+#v(1em)
+
 = Abstract
 
-Microservices are a widely adopted architecture in large systems for organizational scalability and service-level autonomy. However, this architectural style can introduce data-tier and network-level costs that are not
-always visible in high-level design discussions. This work compares monolithic and microservices
-implementations of the same e-commerce workload under controlled, repeatable experiments. Both
-systems share equivalent business logic, identical datasets, and comparable application-level compute
-budgets.
-It evaluate four scenario families: baseline load, deterministic endpoint failure, fixed latency injection,
-and database connection pool exhaustion. Measurements are collected using Apache JMeter and analyzed using per-run and cross-scenario statistics, including means, confidence intervals, architecture
-deltas, and degradation relative to baseline.
-Results show that the monolith delivers substantially higher baseline throughput and lower tail
-latency in our environment, while microservices exhibit greater sensitivity to downstream degradation
-in order-processing paths. Under latency injection, both architectures degrade sharply, but microservices show stronger tail-latency inflation and higher error rates. Pool-size sweeps reveal non-linear
-contention behavior and architecture-dependent tuning effects, reinforcing the need for explicit data-tier capacity planning.
+Microservices are widely adopted for organizational scalability and service autonomy, but decomposition can introduce additional latency, failure-propagation, and data-tier coordination costs. This paper presents a controlled benchmark of monolithic and microservices implementations of the same e-commerce workload under equivalent business logic, identical datasets, and comparable compute budgets. The evaluation covers four scenario families: baseline load, deterministic endpoint failure, fixed latency injection, and database connection pool stress. Measurements are collected with Apache JMeter and analyzed at run and cross-scenario levels using throughput, latency percentiles, error rates, confidence intervals, architecture deltas, and degradation relative to baseline.
+
+Results show a clear baseline efficiency advantage for the monolith in this environment, while the microservices variant exhibits stronger downstream amplification in composite order flows under injected stress. Latency injection produces the largest degradation in both architectures, and pool-size sweeps reveal non-monotonic, architecture-dependent trade-offs between throughput, tail latency, and timeout-driven errors. These findings indicate that architecture choice and resilience tuning should be guided by workload characteristics, reliability targets, and empirical performance evidence rather than style preference alone.
 
 = Introduction
 
