@@ -24,7 +24,7 @@ The evaluation covers four scenario families: baseline load, deterministic endpo
 Measurements are collected with Apache JMeter and analyzed at run and cross-scenario levels using throughput, latency percentiles, error rates, confidence intervals, architecture deltas, and degradation relative to baseline.
 
 Results show a clear baseline efficiency advantage for the monolith in this environment, while the microservices variant exhibits stronger downstream amplification in composite order flows under injected stress.
-Latency injection produces the largest degradation in both architectures, and pool-size sweeps reveal non-monotonic, architecture-dependent trade-offs between throughput, tail latency, and timeout-driven errors.
+Latency injection produces the largest degradation in both architectures; aggregate P95 inflation is larger for the monolith, while microservices exhibits higher overall error and stronger order-path failure amplification. Pool-size sweeps reveal non-monotonic, architecture-dependent trade-offs between throughput, tail latency, and timeout-driven errors.
 These findings indicate that architecture choice and resilience tuning should be guided by workload characteristics, reliability targets, and empirical performance evidence rather than style preference alone.
 
 = Introduction
@@ -103,7 +103,7 @@ For deterministic failure runs, a request fails if and only if its product ID be
 
 == Connection Pool Stress Protocol
 
-For pool stress tests, maximum pool size is varied while request concurrency being constant. This isolates database-handle scarcity from other factors.
+For pool stress tests, maximum pool size is varied while request concurrency is held constant. This isolates database-handle scarcity from other factors.
 
 - Pool sizes tested: #raw("2, 5, 10")
 - Per-size repeated runs are executed and analyzed independently for both architectures
@@ -141,6 +141,22 @@ repeated-run aggregates, confidence intervals, and architecture deltas.
 
 Unless noted otherwise, numeric scores in this section come from the generated summary tables @scenario_architecture_stats_table @architecture_delta_by_scenario_table @pool_sweep_summary_table.
 
+#table(
+  columns: (1.55fr, 1.2fr, 1fr, 1fr, 1fr),
+  align: (left, left, right, right, right),
+  table.header([Scenario], [Architecture], [Throughput (req/s)], [P95 (ms)], [Error rate (%)]),
+  [Baseline], [Monolith], [3420.1], [199.0], [0.00],
+  [Baseline], [Microservices], [1291.1], [493.7], [0.77],
+  [Deterministic fault], [Monolith], [3326.4], [203.7], [9.33],
+  [Deterministic fault], [Microservices], [1144.6], [732.3], [10.78],
+  [Latency injection], [Monolith], [107.5], [3175.0], [41.18],
+  [Latency injection], [Microservices], [198.7], [2450.9], [47.44],
+  [Pool exhaustion (agg)], [Monolith], [3171.9], [157.8], [0.00],
+  [Pool exhaustion (agg)], [Microservices], [1305.2], [479.9], [0.28],
+)
+
+Pool exhaustion (agg) values aggregate all tested pool sizes (#raw("2, 5, 10")).
+
 Cross-scenario aggregates provide a compact view of architecture-level differences across baseline, failure, latency, and pool-stress conditions, as shown in @fig-scenario-comparison and @fig-scenario-boxplots.
 
 #figure(
@@ -157,13 +173,13 @@ Cross-scenario aggregates provide a compact view of architecture-level differenc
 
 Under baseline load, the monolith achieved substantially higher throughput and lower tail latency than the microservices deployment.
 
-- Monolith mean throughput: #raw("3558 req/s")
-- Microservices mean throughput: #raw("1011 req/s")
-- Throughput delta (micro vs mono): #raw("-71.58%")
-- Monolith mean P95: #raw("88 ms")
-- Microservices mean P95: #raw("199 ms")
+- Monolith mean throughput: #raw("3420.1 req/s")
+- Microservices mean throughput: #raw("1291.1 req/s")
+- Throughput delta (micro vs mono): #raw("-62.25%")
+- Monolith mean P95: #raw("199.0 ms")
+- Microservices mean P95: #raw("493.7 ms")
 
-These differences are consistent across repeated runs, with narrow confidence intervals for both architectures; baseline endpoint behavior and throughput stability are shown in @fig-baseline-endpoint-comparison and @fig-baseline-throughput-over-time.
+These differences are consistent across repeated runs. Throughput confidence intervals are narrow for both architectures, while microservices show wider P95 uncertainty. Baseline endpoint behavior and throughput stability are shown in @fig-baseline-endpoint-comparison and @fig-baseline-throughput-over-time.
 
 #figure(
   image("figures/per_endpoint_comparison.png", width: 100%),
@@ -177,13 +193,14 @@ These differences are consistent across repeated runs, with narrow confidence in
 
 == Deterministic Endpoint Failure
 
-In deterministic fault mode (fixed product ID set), monolith behavior remained close to baseline, while microservices showed measurable downstream error amplification.
+Deterministic fault injection used the fixed ID set #raw("3, 7, 11, 12"), which represents #raw("4/30 = 13.33%") of product IDs.
 
-- Monolith error rate remained #raw("0.0%")
-- Microservices mean error rate increased to #raw("0.0326%")
-- Most microservices errors appeared in order creation, not in direct product reads
+- #raw("GET /products/{id}") error rate: #raw("13.33%") (monolith) vs #raw("13.36%") (microservices)
+- Scenario-level error rate: #raw("9.33%") (monolith) vs #raw("10.78%") (microservices)
+- Throughput: #raw("3326.4 req/s") (monolith) vs #raw("1144.6 req/s") (microservices)
+- P95 latency: #raw("203.7 ms") (monolith) vs #raw("732.3 ms") (microservices)
 
-Endpoint-level error decomposition shows that failures propagated primarily through the order path, as illustrated in @fig-fault-per-endpoint-error-rate.
+Endpoint-level decomposition shows stronger downstream amplification in microservices order creation, as illustrated in @fig-fault-per-endpoint-error-rate.
 
 #figure(
   image("figures/fault_per_endpoint_error_rate.png", width: 85%),
@@ -194,11 +211,10 @@ Endpoint-level error decomposition shows that failures propagated primarily thro
 
 Latency injection produced the strongest degradation in both architectures, with severe tail-latency growth and error-rate increases.
 
-- Monolith: #raw("68.3 req/s"), #raw("P95 2001 ms"), #raw("6.54% errors")
-- Microservices: #raw("78.5 req/s"), #raw("P95 3491.9 ms"), #raw("12.94% errors")
+- Monolith: #raw("107.5 req/s"), #raw("P95 3175.0 ms"), #raw("41.18% errors")
+- Microservices: #raw("198.7 req/s"), #raw("P95 2450.9 ms"), #raw("47.44% errors")
 
-Although throughput became similarly low in both systems under this stress, microservices exhibited
-substantially worse tail latency and higher end-to-end failure in order processing. Endpoint-level errors are shown in @fig-latency-per-endpoint-error-rate, and temporal endpoint latency behavior is shown in @fig-latency-endpoint-over-time.
+Although throughput collapsed in both systems under this stress, aggregate P95 latency was higher for the monolith, while microservices showed higher overall error and stronger end-to-end failure in order processing. Endpoint-level errors are shown in @fig-latency-per-endpoint-error-rate, and temporal endpoint latency behavior is shown in @fig-latency-endpoint-over-time.
 
 #figure(
   image("figures/latency_per_endpoint_error_rate.png", width: 85%),
@@ -232,7 +248,7 @@ The results support three main observations.
 
 First, under this workload and compute budget, the monolith provides stronger baseline efficiency. The gap appears in both throughput and tail latency, indicating lower orchestration and data-path overhead. This aligns with prior observations that distributed service graphs are sensitive to tail effects and cross-service dependencies @dean_tail_at_scale @deathstarbench.
 
-Second, deterministic endpoint failure does not model process crash-restart recovery; instead, it captures failure-propagation dynamics. In our data, microservices concentrate additional failures in downstream order operations, while the monolith remains comparatively stable in error rate. This behavior is consistent with known cascading-failure patterns in distributed systems @google_sre.
+Second, deterministic endpoint failure does not model process crash-restart recovery; instead, it captures failure-propagation dynamics. In the measured runs, both architectures show substantial scenario-level error rates, but microservices concentrates additional failures in downstream order operations. This behavior is consistent with known cascading-failure patterns in distributed systems @google_sre.
 
 Third, connection-pool stress is not monotonic across architectures. The monolith is more throughput-sensitive to aggressive pool reduction, whereas microservices show a more complex throughput-error trade-off as pool size changes. This reinforces the need for explicit connection-governance policies tied to architecture and database limits @hikaricp @postgres_max_connections.
 
@@ -253,7 +269,7 @@ the project repository @repo_artifact.
 
 = Conclusion
 
-This benchmark shows a consistent baseline efficiency advantage for the monolith under the tested workload and resource budget, with higher throughput and lower tail latency. Under injected stress, degradation patterns differ by architecture: microservices preserve partial isolation on unrelated paths, but composite order flows show stronger error amplification and tail inflation.
+This benchmark shows a consistent baseline efficiency advantage for the monolith under the tested workload and resource budget, with higher throughput and lower tail latency. Under injected stress, degradation patterns differ by architecture: aggregate tail-latency inflation can be larger in the monolith, while microservices preserves partial isolation on unrelated paths but exhibits stronger error amplification and order-path tail degradation.
 
 Pool-stress results further indicate that tuning is architecture-specific. Throughput, latency, and timeout-driven error behavior do not change monotonically with pool size, so connection and timeout settings should be validated empirically for each deployment style rather than copied directly between systems.
 
