@@ -40,7 +40,7 @@ However, the decentralization inherent in microservices does not come without op
 Furthermore, while microservices are designed to prevent cascading failures—ensuring that a bug in one module does not collapse the entire ecosystem—the inter-service communication overhead introduces new latency patterns. Under peak load, the P95 latency (the time within which 95% of requests are completed) can degrade significantly due to network hops and resource competition, a phenomenon that is often less pronounced in the shared-memory environment of a monolith.
 
 
-This study quantifies these trade-offs using a controlled benchmark campaign across monolithic and microservices implementations of the same domain. This paper focuses on latency, throughput, error behavior, and connection-pool stress to provide evidence-based guidance on when architectural decomposition introduces measurable infrastructure cost.
+This study quantifies these trade-offs using a controlled benchmark campaign across monolithic and microservices implementations of the same domain. This paper focuses on latency, throughput, error behavior, and connection-pool stress to provide evidence-based guidance on when architectural decomposition introduces measurable infrastructure cost. The evaluated deployment topologies are illustrated in @fig-arch-monolith and @fig-arch-microservices.
 
 = Methodology
 
@@ -55,6 +55,18 @@ Both systems implement the same domain entities (users, products, and orders) an
 - The monolith is a single Spring Boot service @spring_boot backed by one relational database and one application connection pool @hikaricp.
 - The microservices system includes user, product, and order services behind an API gateway @nginx_gateway; each service owns its database and connection pool.
 - Inter-service communication in the microservices variant uses synchronous HTTP principles aligned with REST architecture @rest_fielding.
+
+The architecture diagrams for both implementations are shown in @fig-arch-monolith and @fig-arch-microservices.
+
+#figure(
+  image("figures/arch_monolith.png", width: 100%),
+  caption: [Monolithic architecture used in the benchmark setup (adapted from Figure 1 in @nor2022database).],
+) <fig-arch-monolith>
+
+#figure(
+  image("figures/arch_micro.png", width: 100%),
+  caption: [Microservices architecture used in the benchmark setup (adapted from Figure 2 in @nor2022database).],
+) <fig-arch-microservices>
 
 To preserve fairness, both deployments use the same dataset and comparable total CPU and memory limits at the application tier.
 
