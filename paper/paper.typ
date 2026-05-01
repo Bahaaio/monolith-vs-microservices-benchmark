@@ -42,6 +42,11 @@ Furthermore, while microservices are designed to prevent cascading failures—en
 
 This study quantifies these trade-offs using a controlled benchmark campaign across monolithic and microservices implementations of the same domain. This paper focuses on latency, throughput, error behavior, and connection-pool stress to provide evidence-based guidance on when architectural decomposition introduces measurable infrastructure cost. The evaluated deployment topologies are illustrated in @fig-arch-monolith and @fig-arch-microservices.
 
+= The Rest of This Paper
+
+
+The rest of this paper is organized as follows: Section 3 provides a brief summary of the study's practical approach to evaluating both architectures. Section 4 details the methodology, encompassing the study design, systems under test, experimental scenarios, and statistical treatment. Section 5 presents the experimental results, including baseline performance, deterministic endpoint failure, latency injection, and connection pool stress tests. Section 6 discusses the findings, addresses threats to validity, and details reproducibility artifacts. Finally, Section 7 concludes the paper, and Section 8 provides additional diagnostic visualizations in the appendix.
+
 = Methodology
 
 == Study Design
@@ -79,9 +84,6 @@ All experiments were executed on a single Linux host for both architectures.
 - Platform: Linux x86_64
 
 == Workload Model
-
-Load is generated with Apache JMeter @jmeter using a read-heavy profile intended to represent common catalog traffic.
-
 #table(
   columns: (2fr, 1fr),
   align: (left, center),
@@ -91,12 +93,12 @@ Load is generated with Apache JMeter @jmeter using a read-heavy profile intended
   [Order creation], [20%],
 )
 
-Each run includes ramp-up, warm-up, and steady-state phases. Warm-up samples are excluded from all reported metrics.
+The table above illustrates the Workload Model used to test the monolithic and microservices architectures.
+It shows a read-heavy profile designed to simulate e-commerce catalog traffic, which was generated using the Apache JMeter tool @jmeter.
+The simulated traffic is divided into three specific classes as follows: Product reads: These take up the largest part at 50% of the total load. User reads: These part account for 30% of the total load. Order creation: This makes up the remaining 20% of the traffic.
 
 == Experimental Scenarios
-
-This research evaluates four scenario families.
-
+To systematically evaluate the performance and resilience of the monolithic and microservices architectures, this research defines four experimental scenario families,the scenarios range from a Baseline to complex Data-tier contention tests as detailed in the next table.
 #table(
   columns: (2fr, 1.2fr, 3fr),
   align: (left, center, left),
@@ -109,13 +111,12 @@ This research evaluates four scenario families.
   [Connection pool sizes swept across #raw("2, 5, 10") with fixed request load],
 )
 
-Fault and latency injection are implemented at the same logical point in both architectures (product-read path) and controlled by runtime properties: #raw("chaos.enabled"), #raw("chaos.mode"), #raw("chaos.fault-ids"), and #raw("chaos.latency-ms") @chaos_engineering_principles.
-
-For deterministic failure runs, a request fails if and only if its product ID belongs to a configured fixed set. This avoids random sampling noise and improves reproducibility across repeated runs and across architectures.
+Fault and latency injection are implemented with the same logic in both architectures (product-read path) and controlled by runtime properties: #raw("chaos.enabled"), #raw("chaos.mode"), #raw("chaos.fault-ids"), and #raw("chaos.latency-ms") @chaos_engineering_principles.
+A request fails only if its product ID belongs to a configured fixed set. This avoids random sampling noise and improves reproducibility across repeated runs and across every architecture.
 
 == Connection Pool Stress Protocol
 
-For pool stress tests, maximum pool size is varied while request concurrency is held constant. This isolates database-handle scarcity from other factors.
+For pool stress tests, maximum pool size is varied while request concurrency is set constant. This isolates database-handle scarcity from other factors.
 
 - Pool sizes tested: #raw("2, 5, 10")
 - Per-size repeated runs are executed and analyzed independently for both architectures
@@ -150,7 +151,6 @@ Outputs are organized by timestamp and scenario for traceability. Scenario metad
 
 This section reports the final experimental campaign. Scenario-level statistics are summarized with
 repeated-run aggregates, confidence intervals, and architecture deltas.
-
 Unless noted otherwise, numeric scores in this section come from the generated summary tables @scenario_architecture_stats_table @architecture_delta_by_scenario_table @pool_sweep_summary_table.
 
 #table(
@@ -167,7 +167,8 @@ Unless noted otherwise, numeric scores in this section come from the generated s
   [Pool exhaustion (agg)], [Microservices], [1305.2], [479.9], [0.28],
 )
 
-Pool exhaustion (agg) values aggregate all tested pool sizes (#raw("2, 5, 10")).
+The experimental data in the table above reveals a fundamental trade-off in architectural temperament. The Monolith behaves as a Performance-driven architecture: it is optimized for high-efficiency, low-latency environments where internal cohesion allows for maximum throughput. 
+On the other hand, the Microservices architecture is more resilient: while it carries an inherent orchestration tax that limits its peak speed, it demonstrates superior survival traits under systemic stress, such as network latency, where its distributed nature prevents the total throughput collapse seen in the monolithic architecture.
 
 Cross-scenario aggregates provide a compact view of architecture-level differences across baseline, failure, latency, and pool-stress conditions, as shown in @fig-scenario-comparison and @fig-scenario-boxplots.
 
@@ -277,7 +278,8 @@ From an engineering perspective, these findings suggest that microservices requi
 
 Source code and experiment automation are available at:
 
-the project repository @repo_artifact.
+the project repository:
+@repo_artifact Bahaaio, “Monolith vs Microservices Benchmark Repository.” [Online]. Available: https://github.com/Bahaaio/monolith-vs-microservices-benchmark
 
 = Conclusion
 
