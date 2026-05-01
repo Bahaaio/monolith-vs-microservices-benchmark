@@ -91,6 +91,7 @@ All experiments were executed on a single Linux host for both architectures.
   [Product reads], [50%],
   [User reads], [30%],
   [Order creation], [20%],
+  stroke: 0.5pt + gray,
 )
 
 The table above illustrates the Workload Model used to test the monolithic and microservices architectures.
@@ -109,6 +110,8 @@ To systematically evaluate the performance and resilience of the monolithic and 
   [Pool exhaustion sweep],
   [Data-tier contention],
   [Connection pool sizes swept across #raw("2, 5, 10") with fixed request load],
+  fill: (x, y) => if y == 0 { gray.lighten(60%) },
+  stroke: 0.5pt + gray,
 )
 
 Fault and latency injection are implemented with the same logic in both architectures (product-read path) and controlled by runtime properties: #raw("chaos.enabled"), #raw("chaos.mode"), #raw("chaos.fault-ids"), and #raw("chaos.latency-ms") @chaos_engineering_principles.
@@ -165,6 +168,8 @@ Unless noted otherwise, numeric scores in this section come from the generated s
   [Latency injection], [Microservices], [198.7], [2450.9], [47.44],
   [Pool exhaustion (agg)], [Monolith], [3171.9], [157.8], [0.00],
   [Pool exhaustion (agg)], [Microservices], [1305.2], [479.9], [0.28],
+  fill: (x, y) => if y == 0 { gray.lighten(60%) },
+  stroke: 0.5pt + gray,
 )
 
 The experimental data in the table above reveals a fundamental trade-off in architectural temperament. The Monolith behaves as a Performance-driven architecture: it is optimized for high-efficiency, low-latency environments where internal cohesion allows for maximum throughput. 
@@ -281,6 +286,36 @@ Source code and experiment automation are available at:
 the project repository:
 @repo_artifact Bahaaio, “Monolith vs Microservices Benchmark Repository.” [Online]. Available: https://github.com/Bahaaio/monolith-vs-microservices-benchmark
 
+
+== Results Conclusion
+#table(
+  columns: (1.8fr, 1.2fr, 1fr, 1fr, 1fr),
+  inset: 8pt,
+  align: (left, left, right, right, right),
+  fill: (x, y) => if y == 0 { gray.lighten(60%) },
+  stroke: 0.5pt + gray,
+  
+
+  table.header(
+    [*Scenario*], 
+    [*Architecture*], 
+    [*Throughput* \ (req/s)], 
+    [*P95* \ (ms)], 
+    [*Error Rate* \ (%)]
+  ),
+
+  [Baseline], [Monolith], [3420.1], [199.0], [0.00],
+  [], [Microservices], [1291.1], [493.7], [0.77],
+
+  [Deterministic Fault], [Monolith], [3326.4], [203.7], [9.33],
+  [], [Microservices], [1144.6], [732.3], [10.78],
+
+  [Latency Injection], [Monolith], [107.5], [3175.0], [41.18],
+  [], [Microservices], [198.7], [2450.9], [47.44],
+
+  [Pool Exhaustion], [Monolith], [3171.9], [157.8], [0.00],
+  [], [Microservices], [1305.2], [479.9], [0.28],
+)
 = Conclusion
 
 This benchmark shows a consistent baseline efficiency advantage for the monolith under the tested workload and resource budget, with higher throughput and lower tail latency. Under injected stress, degradation patterns differ by architecture: aggregate tail-latency inflation can be larger in the monolith, while microservices preserves partial isolation on unrelated paths but exhibits stronger error amplification and order-path tail degradation.
