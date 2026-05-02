@@ -69,11 +69,7 @@ This study follows a controlled comparative design to isolate architectural effe
 
 == Systems Under Test
 
-Both systems implement the same domain entities (users, products, and orders) and the same business rules for read and order-creation paths.
-
-- The monolith is a single Spring Boot service @spring_boot backed by one relational database and one application connection pool @hikaricp.
-- The microservices system includes user, product, and order services behind an API gateway @nginx_gateway; each service owns its database and connection pool.
-- Inter-service communication in the microservices variant uses synchronous HTTP principles aligned with REST architecture @rest_fielding.
+Both systems implement the same domain entities (users, products, and orders) and the same business rules for read and order-creation paths. The monolith is a single Spring Boot service @spring_boot backed by one relational database and one application connection pool @hikaricp. The microservices system includes user, product, and order services behind an API gateway @nginx_gateway, with each service owning its database and connection pool. Inter-service communication in the microservices variant uses synchronous HTTP principles aligned with REST architecture @rest_fielding.
 
 The architecture diagrams for both implementations are shown in @fig-arch-monolith and @fig-arch-microservices.
 
@@ -91,11 +87,9 @@ To preserve fairness, both deployments use the same dataset and comparable total
 
 == Execution Environment
 
-Running both architectures on a single host is an acknowledged constraint of this study, driven by the practical reality that dedicated cloud infrastructure was outside our budget as undergraduate researchers. We want to be upfront about what this means for the results: on a shared machine, both architectures compete for the same CPU cores and memory, which means the throughput gap we observe is not a pure measure of architectural overhead — it also includes whatever resource contention the OS introduces. We partially controlled for this by isolating runs in Docker Compose with per-container resource limits, resetting state between runs, and applying cooldown periods. Still, the absolute throughput figures should be interpreted with this constraint in mind. The relative degradation patterns — how each architecture responds to injected stress compared to its own baseline — are more reliable indicators than cross-architecture throughput comparisons alone, and that relative analysis is where we focus most of our interpretation.
+Running both architectures on a single host is an acknowledged constraint of this study, driven by the practical reality that dedicated cloud infrastructure was outside our budget as undergraduate researchers. We want to be upfront about what this means for the results: even though the two architectures were not executed at the same time, they still ran on the same machine, so the throughput gap we observe is not a pure measure of architectural overhead — it also includes whatever resource contention the OS introduces across sequential runs. We partially controlled for this by isolating each run in Docker Compose with per-container resource limits, resetting state between runs, and applying cooldown periods. Runs were executed one after another in isolated Docker containers, and the full experiment took roughly 9 hours on the authors' laptop. Still, the absolute throughput figures should be interpreted with this constraint in mind. The relative degradation patterns — how each architecture responds to injected stress compared to its own baseline — are more reliable indicators than cross-architecture throughput comparisons alone, and that relative analysis is where we focus most of our interpretation.
 
-- CPU: 12th Gen Intel Core i5-1235U (10 physical cores, 12 logical threads)
-- Memory: 24 GB RAM (approximately 23 GiB visible to the OS)
-- Platform: Linux x86_64
+Hardware and platform details are as follows: a 12th Gen Intel Core i5-1235U (10 physical cores, 12 logical threads), 24 GB RAM (approximately 23 GiB visible to the OS), running Linux x86_64.
 
 == Workload Model
 #table(
@@ -134,34 +128,17 @@ A request fails only if its product ID belongs to a configured fixed set. This a
 
 == Connection Pool Stress Protocol
 
-For pool stress tests, maximum pool size is varied while request concurrency is set constant. This isolates database-handle scarcity from other factors.
-
-- Pool sizes tested: #raw("2, 5, 10")
-- Per-size repeated runs are executed and analyzed independently for both architectures
-- Per-run environment is reset to avoid state carry-over
-- Connection timeout configured at #raw("2000 ms") during pool-stress runs; timeout breaches are counted as request errors
-- Pool and connection limits are interpreted with reference to pool configuration behavior and database connection ceilings @hikaricp @postgres_max_connections
+For pool stress tests, maximum pool size is varied while request concurrency is set constant. This isolates database-handle scarcity from other factors. Pool sizes tested are #raw("2, 5, 10"), with per-size repeated runs executed and analyzed independently for both architectures. The per-run environment is reset to avoid state carry-over, and the connection timeout is configured at #raw("2000 ms") during pool-stress runs so timeout breaches are counted as request errors. Pool and connection limits are interpreted with reference to pool configuration behavior and database connection ceilings @hikaricp @postgres_max_connections.
 
 == Metrics and Statistical Treatment
 
-This research focuses on the following outcome variables:
-
-- Throughput (requests/second)
-- Latency percentiles (P50, P95, P99)
-- Error rate and error count
-- Time-series behavior for throughput and tail latency
+This research focuses on the following outcome variables: throughput (requests/second), latency percentiles (P50, P95, P99), error rate and error count, and time-series behavior for throughput and tail latency.
 
 For each scenario, results are reported at run level and as architecture-level aggregates. The analysis pipeline computes means, standard deviations, and 95% confidence intervals, then reports architecture deltas and degradation relative to baseline where baseline data is available.
 
 == Execution and Reproducibility
 
-Each run is executed in isolation with Docker Compose @docker_compose.
-
-1. Start architecture and wait for health checks
-2. Execute the JMeter plan
-3. Persist raw #raw(".jtl") output and HTML report
-4. Tear down containers and volumes
-5. Apply cooldown before the next run
+Each run is executed in isolation with Docker Compose @docker_compose. The procedure starts the architecture and waits for health checks, executes the JMeter plan, persists raw #raw(".jtl") output and the HTML report, tears down containers and volumes, and applies a cooldown before the next run.
 
 Outputs are organized by timestamp and scenario for traceability. Scenario metadata is persisted for every run, and both raw measurements and processed summaries are retained at scenario and experiment-aggregate levels. Reproducibility practices follow the same rationale used in computational research workflows @peng_reproducible_research.
 
@@ -203,13 +180,7 @@ Cross-scenario aggregates provide a compact view of architecture-level differenc
 
 == Baseline Performance
 
-Under baseline load, the monolith achieved substantially higher throughput and lower tail latency than the microservices deployment.
-
-- Monolith mean throughput: #raw("3420.1 req/s")
-- Microservices mean throughput: #raw("1291.1 req/s")
-- Throughput delta (micro vs mono): #raw("-62.25%")
-- Monolith mean P95: #raw("199.0 ms")
-- Microservices mean P95: #raw("493.7 ms")
+Under baseline load, the monolith achieved substantially higher throughput and lower tail latency than the microservices deployment. Monolith mean throughput was #raw("3420.1 req/s") versus #raw("1291.1 req/s") for microservices, a throughput delta (micro vs mono) of #raw("-62.25%"). Monolith mean P95 was #raw("199.0 ms"), while microservices mean P95 was #raw("493.7 ms").
 
 These differences are consistent across repeated runs. Throughput confidence intervals are narrow for both architectures, while microservices show wider P95 uncertainty. Baseline endpoint behavior and throughput stability are shown in @fig-baseline-endpoint-comparison and @fig-baseline-throughput-over-time.
 
@@ -225,12 +196,7 @@ These differences are consistent across repeated runs. Throughput confidence int
 
 == Deterministic Endpoint Failure
 
-Deterministic fault injection used the fixed ID set #raw("3, 7, 11, 12"), which represents #raw("4/30 = 13.33%") of product IDs.
-
-- #raw("GET /products/{id}") error rate: #raw("13.33%") (monolith) vs #raw("13.36%") (microservices)
-- Scenario-level error rate: #raw("9.33%") (monolith) vs #raw("10.78%") (microservices)
-- Throughput: #raw("3326.4 req/s") (monolith) vs #raw("1144.6 req/s") (microservices)
-- P95 latency: #raw("203.7 ms") (monolith) vs #raw("732.3 ms") (microservices)
+Deterministic fault injection used the fixed ID set #raw("3, 7, 11, 12"), which represents #raw("4/30 = 13.33%") of product IDs. The #raw("GET /products/{id}") error rate was #raw("13.33%") (monolith) vs #raw("13.36%") (microservices), while the scenario-level error rate was #raw("9.33%") (monolith) vs #raw("10.78%") (microservices). Throughput was #raw("3326.4 req/s") (monolith) vs #raw("1144.6 req/s") (microservices), and P95 latency was #raw("203.7 ms") (monolith) vs #raw("732.3 ms") (microservices).
 
 Endpoint-level decomposition shows stronger downstream amplification in microservices order creation, as illustrated in @fig-fault-per-endpoint-error-rate.
 
@@ -241,10 +207,7 @@ Endpoint-level decomposition shows stronger downstream amplification in microser
 
 == Latency Injection
 
-Latency injection produced the strongest degradation in both architectures, with severe tail-latency growth and error-rate increases.
-
-- Monolith: #raw("107.5 req/s"), #raw("P95 3175.0 ms"), #raw("41.18% errors")
-- Microservices: #raw("198.7 req/s"), #raw("P95 2450.9 ms"), #raw("47.44% errors")
+Latency injection produced the strongest degradation in both architectures, with severe tail-latency growth and error-rate increases. The monolith measured #raw("107.5 req/s"), #raw("P95 3175.0 ms"), and #raw("41.18% errors"), while microservices measured #raw("198.7 req/s"), #raw("P95 2450.9 ms"), and #raw("47.44% errors").
 
 Although throughput collapsed in both systems under this stress, aggregate P95 latency was higher for the monolith, while microservices showed higher overall error and stronger end-to-end failure in order processing. Endpoint-level errors are shown in @fig-latency-per-endpoint-error-rate, and temporal endpoint latency behavior is shown in @fig-latency-endpoint-over-time.
 
@@ -260,10 +223,7 @@ Although throughput collapsed in both systems under this stress, aggregate P95 l
 
 == Pool Exhaustion Sweep
 
-Pool-size sweeps reveal architecture-dependent contention behavior.
-
-- Monolith throughput dropped sharply at pool size #raw("2") compared with #raw("5") and #raw("10")
-- The microservices architecture showed its highest throughput at pool size #raw("2") and its highest observed error rate at pool size #raw("10")
+Pool-size sweeps reveal architecture-dependent contention behavior. Monolith throughput dropped sharply at pool size #raw("2") compared with #raw("5") and #raw("10"), while the microservices architecture showed its highest throughput at pool size #raw("2") and its highest observed error rate at pool size #raw("10").
 
 Given the fixed #raw("2000 ms") timeout, queueing pressure can convert into timeout-driven failures; however, the observed error response is non-monotonic and architecture-specific rather than a simple inverse function of pool size.
 
@@ -288,10 +248,7 @@ From an engineering perspective, these findings suggest that microservices requi
 
 == Threats to Validity
 
-- External validity: findings reflect one domain model, one workload mix, and one implementation stack.
-- Internal validity: deterministic injection improves reproducibility but does not represent random production-failure distributions.
-- Construct validity: endpoint-level fault injection evaluates propagation behavior, not orchestrator-driven restart resilience.
-- Resource validity is the most significant threat in this study. Both architectures ran on the same physical host, meaning the monolith and microservices deployments share underlying CPU and memory resources. This introduces implicit contention that we cannot fully eliminate. We mitigated this in three ways: applying Docker resource limits to cap each service's CPU and memory allocation, resetting container state between every run to avoid warm-cache advantages, and running each scenario in complete isolation with a cooldown period before the next run. However, we cannot claim these controls fully neutralize OS-level scheduling effects. Readers should treat absolute throughput numbers as indicative rather than definitive, and should weight the degradation-relative-to-baseline analysis more heavily, since relative comparisons within each architecture are not affected by the shared-host issue in the same way cross-architecture comparisons are. A follow-up study on isolated cloud instances (e.g., two separate EC2 t3.medium nodes) would be the natural next step to test whether the baseline gap narrows significantly.
+Threats to validity include external validity, as the findings reflect one domain model, one workload mix, and one implementation stack. Internal validity is limited because deterministic injection improves reproducibility but does not represent random production-failure distributions. Construct validity is constrained because endpoint-level fault injection evaluates propagation behavior rather than orchestrator-driven restart resilience. Resource validity is the most significant threat in this study: both architectures ran on the same physical host, meaning the monolith and microservices deployments share underlying CPU and memory resources, introducing implicit contention that we cannot fully eliminate. We mitigated this in three ways: applying Docker resource limits to cap each service's CPU and memory allocation, resetting container state between every run to avoid warm-cache advantages, and running each scenario in complete isolation with a cooldown period before the next run. However, we cannot claim these controls fully neutralize OS-level scheduling effects. Readers should treat absolute throughput numbers as indicative rather than definitive, and should weight the degradation-relative-to-baseline analysis more heavily, since relative comparisons within each architecture are not affected by the shared-host issue in the same way cross-architecture comparisons are. A follow-up study on isolated cloud instances (e.g., two separate EC2 t3.medium nodes) would be the natural next step to test whether the baseline gap narrows significantly.
 
 == Reproducibility Artifact
 
