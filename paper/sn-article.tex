@@ -1,0 +1,425 @@
+%Version 3.1 December 2024
+% See section 11 of the User Manual for version history
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%                                                                 %%
+%% Please do not use \input{...} to include other tex files.       %%
+%% Submit your LaTeX manuscript as one .tex document.              %%
+%%                                                                 %%
+%% All additional figures and files should be attached             %%
+%% separately and not embedded in the \TeX\ document itself.       %%
+%%                                                                 %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%\documentclass[referee,sn-basic]{sn-jnl}% referee option is meant for double line spacing
+
+%%=======================================================%%
+%% to print line numbers in the margin use lineno option %%
+%%=======================================================%%
+
+%%\documentclass[lineno,pdflatex,sn-basic]{sn-jnl}% Basic Springer Nature Reference Style/Chemistry Reference Style
+
+%%=========================================================================================%%
+%% the documentclass is set to pdflatex as default. You can delete it if not appropriate.  %%
+%%=========================================================================================%%
+
+%%\documentclass[sn-basic]{sn-jnl}% Basic Springer Nature Reference Style/Chemistry Reference Style
+
+%%Note: the following reference styles support Namedate and Numbered referencing. By default the style follows the most common style. To switch between the options you can add or remove ‘Numbered’ in the optional parenthesis.
+%%The option is available for: sn-basic.bst, sn-chicago.bst%
+
+%%\documentclass[pdflatex,sn-nature]{sn-jnl}% Style for submissions to Nature Portfolio journals
+\documentclass[pdflatex,sn-basic]{sn-jnl}% Basic Springer Nature Reference Style/Chemistry Reference Style
+%%\documentclass[pdflatex,sn-mathphys-num]{sn-jnl}% Math and Physical Sciences Numbered Reference Style
+%%\documentclass[pdflatex,sn-mathphys-ay]{sn-jnl}% Math and Physical Sciences Author Year Reference Style
+%%\documentclass[pdflatex,sn-aps]{sn-jnl}% American Physical Society (APS) Reference Style
+%%\documentclass[pdflatex,sn-vancouver-num]{sn-jnl}% Vancouver Numbered Reference Style
+%%\documentclass[pdflatex,sn-vancouver-ay]{sn-jnl}% Vancouver Author Year Reference Style
+%%\documentclass[pdflatex,sn-apa]{sn-jnl}% APA Reference Style
+%%\documentclass[pdflatex,sn-chicago]{sn-jnl}% Chicago-based Humanities Reference Style
+
+%%%% Standard Packages
+%%<additional latex packages if required can be included here>
+
+\usepackage{graphicx}%
+\usepackage{multirow}%
+\usepackage{amsmath,amssymb,amsfonts}%
+\usepackage{amsthm}%
+\usepackage{mathrsfs}%
+\usepackage[title]{appendix}%
+\usepackage{xcolor}%
+\usepackage{textcomp}%
+\usepackage{manyfoot}%
+\usepackage{booktabs}%
+\usepackage{algorithm}%
+\usepackage{algorithmicx}%
+\usepackage{algpseudocode}%
+\usepackage{listings}%
+\usepackage{placeins}%
+%%%%
+
+%%%%%=============================================================================%%%%
+%%%%  Remarks: This template is provided to aid authors with the preparation
+%%%%  of original research articles intended for submission to journals published
+%%%%  by Springer Nature. The guidance has been prepared in partnership with
+%%%%  production teams to conform to Springer Nature technical requirements.
+%%%%  Editorial and presentation requirements differ among journal portfolios and
+%%%%  research disciplines. You may find sections in this template are irrelevant
+%%%%  to your work and are empowered to omit any such section if allowed by the
+%%%%  journal you intend to submit to. The submission guidelines and policies
+%%%%  of the journal take precedence. A detailed User Manual is available in the
+%%%%  template package for technical guidance.
+%%%%%=============================================================================%%%%
+
+%% as per the requirement new theorem styles can be included as shown below
+\theoremstyle{thmstyleone}%
+\newtheorem{theorem}{Theorem}%  meant for continuous numbers
+%%\newtheorem{theorem}{Theorem}[section]% meant for sectionwise numbers
+%% optional argument [theorem] produces theorem numbering sequence instead of independent numbers for Proposition
+\newtheorem{proposition}[theorem]{Proposition}%
+%%\newtheorem{proposition}{Proposition}% to get separate numbers for theorem and proposition etc.
+
+\theoremstyle{thmstyletwo}%
+\newtheorem{example}{Example}%
+\newtheorem{remark}{Remark}%
+
+\theoremstyle{thmstylethree}%
+\newtheorem{definition}{Definition}%
+
+\raggedbottom
+%%\unnumbered% uncomment this for unnumbered level heads
+
+\begin{document}
+
+\title[Monolith vs. Microservices Under Stress]{Monolith vs. Microservices Under Stress: A Controlled Benchmark of Fault Propagation, Latency, and Database Contention}
+
+\author*[1]{\fnm{Ahmad} \sur{Louay}}\email{ahmad.edit@me.com}
+\author[1]{\fnm{Bahaa El Deen} \sur{Mohamed}}\email{bahaa.edit@me.com}
+\author[1]{\fnm{Youssef} \sur{Khaled}}\email{youssef.edit@me.com}
+
+\affil*[1]{\orgname{Sadat Academy for Management Sciences}, \orgaddress{\city{Cairo}, \country{Egypt}}}
+
+\abstract{Microservices are widely adopted for organizational scalability and service autonomy, but decomposition can introduce additional latency, failure-propagation, and data-tier coordination costs. This paper presents a controlled benchmark of monolithic and microservices implementations of the same e-commerce workload under equivalent business logic, identical datasets, and comparable compute budgets. The evaluation covers four scenario families: baseline load, deterministic endpoint failure, fixed latency injection, and database connection pool stress. Measurements are collected with Apache JMeter and analyzed at run and cross-scenario levels using throughput, latency percentiles, error rates, confidence intervals, architecture deltas, and degradation relative to baseline.
+
+	Results show a clear baseline efficiency advantage for the monolith in this environment, while the microservices variant exhibits stronger downstream amplification in composite order flows under injected stress. Latency injection produces the largest degradation in both architectures; aggregate P95 inflation is larger for the monolith, while microservices exhibits higher overall error and stronger order-path failure amplification. Pool-size sweeps reveal non-monotonic, architecture-dependent trade-offs between throughput, tail latency, and timeout-driven errors. These findings indicate that architecture choice and resilience tuning should be guided by workload characteristics, reliability targets, and empirical performance evidence rather than style preference alone.}
+
+\keywords{microservices; monolithic architecture; performance benchmarking; fault propagation; latency injection; database connection pooling}
+
+\maketitle
+
+\section{Introduction}\label{sec-introduction}
+
+The term ``monolith'' implies something large and tightly integrated, which reflects a key practical advantage of monolithic software design: one codebase usually simplifies deployment, tracing, and local testing, and often delivers strong baseline performance in many environments \cite{atlassian_microservices_vs_monolith,fowler_monolith_first}. These properties make monolithic architecture a practical choice for early-stage products, where development speed, lower operational complexity, and lower platform overhead are important. In contrast, moving to microservices can be complex and costly and usually requires stronger domain boundaries and operational maturity \cite{taibi2017processes,jamshidi2018microservices}. However, monolithic systems can become harder to evolve at large scale. Tight coupling can slow technology adoption and independent scaling, and major changes may require broad system-level modification rather than service-level evolution \cite{newman_microservices,dragoni_microservices}.
+
+Because of these long-term limitations, many organizations shift toward microservices, which decompose the system into smaller independently deployable services with clearer responsibility boundaries \cite{newman_microservices,richardson_microservices}.
+
+However, the decentralization inherent in microservices does not come without operational costs. While functional logic is easily partitioned, the data tier often remains a point of contention. In a monolithic system, database interactions are managed through a unified connection pool, optimizing resource utilization. Conversely, a microservices deployment requires each independent service to maintain its own connection overhead. As the number of services scales, this leads to ``connection sprawl,'' where the aggregate demand for database handles can exhaust system resources even if the underlying hardware is underutilized.
+
+Furthermore, while microservices are designed to prevent cascading failures---ensuring that a bug in one module does not collapse the entire ecosystem---the inter-service communication overhead introduces new latency patterns. Under peak load, the P95 latency (the time within which 95\% of requests are completed) can degrade significantly due to network hops and resource competition, a phenomenon that is often less pronounced in the shared-memory environment of a monolith.
+
+This study quantifies these trade-offs using a controlled benchmark campaign across monolithic and microservices implementations of the same domain. This paper focuses on latency, throughput, error behavior, and connection-pool stress to provide evidence-based guidance on when architectural decomposition introduces measurable infrastructure cost. The evaluated deployment topologies are illustrated in Figures~\ref{fig-arch-monolith} and \ref{fig-arch-microservices}.
+
+Despite the volume of existing work on microservices performance, most published benchmarks either target cloud-native multi-node deployments or focus on a single stress dimension in isolation. Studies that examine fault propagation, latency injection, and connection-pool contention together---under a unified workload and on the same dataset---remain scarce. This experiment is specifically designed to fill that gap. Rather than measuring peak throughput alone, the analysis seeks to understand how each architecture degrades: whether failures stay contained, how quickly tail latency compounds, and whether connection-pool tuning behaves predictably across deployment styles. These are the questions that actually matter when an engineering team is deciding whether to break apart an existing service.
+
+The rest of this paper is organized as follows. Section~\ref{sec-methodology} describes the methodology, including the systems under test, the four experimental scenarios, and how the single-host deployment constraint is controlled. Section~\ref{sec-results} presents the results across baseline, fault, latency, and pool-exhaustion conditions. Section~\ref{sec-discussion} discusses the three main findings---including the counterintuitive pool-sweep behavior and the failure amplification pattern in microservices order paths. Section~\ref{sec-conclusion} concludes with architecture-selection guidance, and Section~\ref{sec-appendix} provides supplementary diagnostic figures. The experiment is fully reproducible from our public repository \cite{repo_artifact}.
+
+\section{Related Work}\label{sec-related-work}
+
+Research on microservices performance and architectural trade-offs has grown substantially since the mid-2010s, driven by widespread industry adoption. This section situates our work relative to the most relevant prior studies.
+
+\textit{Benchmarking distributed systeml at scale:} Dean and Barroso \cite{dean_tail_at_scale} established the theoretical basis for understanding tail latency in distributed systems, showing that as the number of chained service calls grows, the probability of hitting a slow component---what they call a ``straggler''---compounds multiplicatively. Results in Section~\ref{sec-results} directly reflect this: the microservices P95 latency under baseline load (493.7 ms) is more than double the monolith's (199.0 ms), despite identical business logic, and the gap widens further under latency injection. Gan et al. \cite{deathstarbench} extended this line of work with DeathStarBench, an open-source benchmark suite for microservices that targets cloud-native, multi-node deployments. Where DeathStarBench focuses on end-to-end cloud infrastructure characterization, this study deliberately targets a constrained single-host environment to isolate architectural overhead from infrastructure scale effects.
+
+\textit{Migration challenges and operational cost:} Taibi et al. \cite{taibi2017processes} surveyed practitioners migrating from monolithic to microservices architectures, identifying data-tier coordination and operational complexity as the two most commonly reported challenges. Pool-exhaustion sweep results in Section~\ref{sec-pool-exhaustion-sweep} provide direct empirical evidence for the data-tier concern: connection-pool behavior is non-monotonic and architecture-specific, meaning that tuning strategies cannot be shared between deployment styles. Jamshidi et al. \cite{jamshidi2018microservices} examined the broader journey of microservices adoption and identified lack of empirical benchmarking as a recurring gap in the literature---a gap this study directly addresses.
+
+\textit{Fault tolerance and resilience patterns:} Newman \cite{newman_microservices} and Richardson \cite{richardson_microservices} both argue that microservices should improve fault isolation because service boundaries limit blast radius. Deterministic fault injection results qualify this claim: while the product-endpoint error rate was nearly identical between architectures (13.33\% vs 13.36\%), the scenario-level error rate was higher for microservices (10.78\% vs 9.33\%), driven entirely by amplification in the POST /orders path. This aligns with the cascading-failure patterns documented by Beyer et al. \cite{google_sre} in the context of large-scale production systems, and reinforces Nygard's \cite{resilience_patterns} argument that circuit breakers and bulkheads are not optional resilience controls for synchronous microservices---they are necessary ones.
+
+\textit{Connection pool management:} Nor Sobri et al. \cite{nor2022database} examined database connection pool behaviour specifically in microservice architectures, establishing that per-service pool fragmentation creates aggregate demand that can exhaust database handles even when individual services are lightly loaded. Pool-sweep results confirm this in a controlled benchmark setting and extend the finding by showing that the response to pool-size changes is non-monotonic: microservices throughput peaked at pool size 2 before degrading---a behaviour that a simple fragmentation model would not predict.
+
+Taken together, prior work establishes the theoretical mechanisms (tail latency compounding, connection sprawl, failure amplification) but typically studies them in isolation or at cloud scale. This study contributes a controlled, reproducible benchmark that measures all three stress dimensions simultaneously under an identical workload, making the trade-offs directly comparable within a single experimental campaign.
+
+\section{Methodology}\label{sec-methodology}
+
+\subsection{Study Design}
+
+This study follows a controlled comparative design to isolate architectural effects under equivalent workload conditions. Experimental interpretation follows standard performance-analysis practice, emphasizing repeatability, controlled variables, and statistical summaries \cite{jain_performance}.
+
+\subsection{Systems Under Test}
+
+Both systems implement the same domain entities (users, products, and orders) and the same business rules for read and order-creation paths. The monolith is a single Spring Boot service \cite{spring_boot} backed by one relational database and one application connection pool \cite{hikaricp}. The microservices system includes user, product, and order services behind an API gateway \cite{nginx_gateway}, with each service owning its database and connection pool. Inter-service communication in the microservices variant uses synchronous HTTP principles aligned with REST architecture \cite{rest_fielding}.
+
+The architecture diagrams for both implementations are shown in Figures~\ref{fig-arch-monolith} and \ref{fig-arch-microservices}.
+
+\begin{figure}[ht]
+	\centering
+	\includegraphics[width=\textwidth]{arch_monolith.png}
+	\caption{Monolithic architecture used in the benchmark setup.}
+	\label{fig-arch-monolith}
+\end{figure}
+
+\begin{figure}[ht]
+	\centering
+	\includegraphics[width=\textwidth]{arch_micro.png}
+	\caption{Microservices architecture used in the benchmark setup.}
+	\label{fig-arch-microservices}
+\end{figure}
+
+To preserve fairness, both deployments use the same dataset and comparable total CPU and memory limits at the application tier.
+
+\subsection{Execution Environment}\label{sec-execution-environment}
+
+Running both architectures on a single host is an acknowledged constraint of this study, driven by the practical reality that dedicated cloud infrastructure was outside the project budget. The implications are stated explicitly: even though the two architectures were not executed at the same time, they still ran on the same machine, so the throughput gap observed is not a pure measure of architectural overhead---it also includes whatever resource contention the OS introduces across sequential runs. This was partially controlled by isolating each run in Docker Compose with per-container resource limits, resetting state between runs, and applying cooldown periods. Runs were executed one after another in isolated Docker containers, and the full experiment took roughly 9 hours on the authors' laptop. Still, the absolute throughput figures should be interpreted with this constraint in mind. The relative degradation patterns---how each architecture responds to injected stress compared to its own baseline---are more reliable indicators than cross-architecture throughput comparisons alone, and that relative analysis is where the interpretation focuses.
+
+Hardware and platform details are as follows: a 12th Gen Intel Core i5-1235U (10 physical cores, 12 logical threads), 24 GB RAM (approximately 23 GiB visible to the OS), running Linux x86\_64.
+
+\subsection{Workload Model}
+
+\begin{table}[ht]
+	\caption{Workload model used in the benchmark.}
+	\centering
+	\begin{tabular}{l c}
+		\toprule
+		Operation class & Share \\
+		\midrule
+		Product reads   & 50\%  \\
+		User reads      & 30\%  \\
+		Order creation  & 20\%  \\
+		\bottomrule
+	\end{tabular}
+\end{table}
+
+The table above illustrates the Workload Model used to test the monolithic and microservices architectures. It shows a read-heavy profile designed to simulate e-commerce catalog traffic, which was generated using the Apache JMeter tool \cite{jmeter}. The workload mix was designed to reflect a read-heavy e-commerce traffic profile, where catalog browsing significantly outnumbers purchases. The 50/30/20 split---product reads, user reads, and order creation respectively---approximates the general shape reported in industry analyses of web retail traffic, where checkout events typically represent 15--25\% of session activity while product browsing dominates. Product reads were weighted highest because the product service is the shared dependency across all three stress scenarios: it is the target of fault injection, the source of latency injection, and a consumer of the shared connection pool. Concentrating load on this path ensures that injected failures and delays have a clear propagation path to measure, rather than being diluted across endpoints that do not interact.
+
+\subsection{Experimental Scenarios}
+
+To systematically evaluate the performance and resilience of the monolithic and microservices architectures, this research defines four experimental scenario families,the scenarios range from a Baseline to complex Data-tier contention tests as detailed in the next table.
+
+\begin{table}[ht]
+	\caption{Experimental scenarios and configuration summaries.}
+	\centering
+	\begin{tabular}{p{0.28\textwidth} p{0.18\textwidth} p{0.46\textwidth}}
+		\toprule
+		Scenario                       & Intent                  & Configuration summary                                                        \\
+		\midrule
+		Baseline                       & Reference               & No injected faults or delays; default pool settings                          \\
+		Deterministic endpoint failure & Failure propagation     & Product-read failures injected for a fixed ID set                            \\
+		Latency injection              & Performance degradation & Fixed delay injected on product-read path                                    \\
+		Pool exhaustion sweep          & Data-tier contention    & Connection pool sizes swept across \texttt{2, 5, 10} with fixed request load \\
+		\bottomrule
+	\end{tabular}
+\end{table}
+
+Fault and latency injection are implemented with the same logic in both architectures (product-read path) and controlled by runtime properties: \texttt{chaos.enabled}, \texttt{chaos.mode}, \texttt{chaos.fault-ids}, and \texttt{chaos.latency-ms} \cite{chaos_engineering_principles}. A request fails only if its product ID belongs to a configured fixed set. This avoids random sampling noise and improves reproducibility across repeated runs and across every architecture.
+
+\subsection{Connection Pool Stress Protocol}
+
+For pool stress tests, maximum pool size is varied while request concurrency is set constant. This isolates database-handle scarcity from other factors. Pool sizes tested are \texttt{2, 5, 10}, with per-size repeated runs executed and analyzed independently for both architectures. The per-run environment is reset to avoid state carry-over, and the connection timeout is configured at \texttt{2000 ms} during pool-stress runs so timeout breaches are counted as request errors. Pool and connection limits are interpreted with reference to pool configuration behavior and database connection ceilings \cite{hikaricp,postgres_max_connections}.
+
+\subsection{Metrics and Statistical Treatment}
+
+This research focuses on the following outcome variables: throughput (requests/second), latency percentiles (P50, P95, P99), error rate and error count, and time-series behavior for throughput and tail latency.
+
+For each scenario, results are reported at run level and as architecture-level aggregates. The analysis pipeline computes means, standard deviations, and 95\% confidence intervals, then reports architecture deltas and degradation relative to baseline where baseline data is available.
+
+\subsection{Execution and Reproducibility}
+
+Each run is executed in isolation with Docker Compose \cite{docker_compose}. The procedure starts the architecture and waits for health checks, executes the JMeter plan, persists raw \texttt{.jtl} output and the HTML report, tears down containers and volumes, and applies a cooldown before the next run.
+
+Outputs are organized by timestamp and scenario for traceability. Scenario metadata is persisted for every run, and both raw measurements and processed summaries are retained at scenario and experiment-aggregate levels. Reproducibility practices follow the same rationale used in computational research workflows \cite{peng_reproducible_research}.
+
+\section{Experimental Results}\label{sec-results}
+
+This section reports the final experimental campaign. Scenario-level statistics are summarized with repeated-run aggregates, confidence intervals, and architecture deltas. Unless noted otherwise, numeric scores in this section come from the generated summary tables \cite{scenario_architecture_stats_table,architecture_delta_by_scenario_table,pool_sweep_summary_table}.
+
+\begin{table}[ht]
+	\caption{Scenario-level performance summary by architecture.}
+	\centering
+	\begin{tabular}{l l r r r}
+		\toprule
+		Scenario              & Architecture  & Throughput (req/s) & P95 (ms) & Error rate (\%) \\
+		\midrule
+		Baseline              & Monolith      & 3420.1             & 199.0    & 0.00            \\
+		Baseline              & Microservices & 1291.1             & 493.7    & 0.77            \\
+		Deterministic fault   & Monolith      & 3326.4             & 203.7    & 9.33            \\
+		Deterministic fault   & Microservices & 1144.6             & 732.3    & 10.78           \\
+		Latency injection     & Monolith      & 107.5              & 3175.0   & 41.18           \\
+		Latency injection     & Microservices & 198.7              & 2450.9   & 47.44           \\
+		Pool exhaustion (agg) & Monolith      & 3171.9             & 157.8    & 0.00            \\
+		Pool exhaustion (agg) & Microservices & 1305.2             & 479.9    & 0.28            \\
+		\bottomrule
+	\end{tabular}
+\end{table}
+
+The table above shows that the two architectures respond to stress very differently. Under baseline and pool conditions, the monolith maintains a throughput advantage of roughly 2.6$\times$ and a P95 latency advantage of roughly 2.5$\times$. Under latency injection, that advantage reverses in one dimension: the monolith's throughput collapses more severely (107.5 vs 198.7 req/s) while its tail latency grows larger (3175 vs 2450 ms), even though microservices accumulates a higher overall error rate. Neither architecture dominates across all scenarios---the pattern depends on which stress dimension you measure.
+
+Cross-scenario aggregates provide a compact view of architecture-level differences across baseline, failure, latency, and pool-stress conditions, as shown in Figures~\ref{fig-scenario-comparison} and \ref{fig-scenario-boxplots}.
+
+\begin{figure}[ht]
+	\centering
+	\includegraphics[width=\textwidth]{scenario_comparison_ci.png}
+	\caption{Cross-scenario comparison of throughput, P95 latency, and error rate (mean with 95\% confidence intervals).}
+	\label{fig-scenario-comparison}
+\end{figure}
+
+\begin{figure}[ht]
+	\centering
+	\includegraphics[width=\textwidth]{scenario_boxplots.png}
+	\caption{Run-level metric distributions by scenario and architecture.}
+	\label{fig-scenario-boxplots}
+\end{figure}
+
+\subsection{Baseline Performance}
+
+Under baseline load, the monolith achieved substantially higher throughput and lower tail latency than the microservices deployment. Monolith mean throughput was \texttt{3420.1 req/s} versus \texttt{1291.1 req/s} for microservices, a throughput delta (micro vs mono) of \texttt{-62.25\%}. Monolith mean P95 was \texttt{199.0 ms}, while microservices mean P95 was \texttt{493.7 ms}.
+
+These differences are consistent across repeated runs. Throughput confidence intervals are narrow for both architectures, while microservices show wider P95 uncertainty. Baseline endpoint behavior and throughput stability are shown in Figures~\ref{fig-baseline-endpoint-comparison} and \ref{fig-baseline-throughput-over-time}.
+
+\begin{figure}[ht]
+	\centering
+	\includegraphics[width=\textwidth]{per_endpoint_comparison.png}
+	\caption{Baseline endpoint comparison between architectures (throughput and latency characteristics by API path) confirming that the performance gap is consistent across all three endpoints, not isolated to a single path.}
+	\label{fig-baseline-endpoint-comparison}
+\end{figure}
+
+\begin{figure}[ht]
+	\centering
+	\includegraphics[width=\textwidth]{throughput_over_time.png}
+	\caption{Baseline throughput over normalized run time (mean across runs) showing that the performance gap is not a warm-up artefact but a persistent steady-state difference.}
+	\label{fig-baseline-throughput-over-time}
+\end{figure}
+
+\subsection{Deterministic Endpoint Failure}
+
+Deterministic fault injection used the fixed ID set \texttt{3, 7, 11, 12}, which represents \texttt{4/30 = 13.33\%} of product IDs. The \texttt{GET /products/\{id\}} error rate was \texttt{13.33\%} (monolith) vs \texttt{13.36\%} (microservices), while the scenario-level error rate was \texttt{9.33\%} (monolith) vs \texttt{10.78\%} (microservices). Throughput was \texttt{3326.4 req/s} (monolith) vs \texttt{1144.6 req/s} (microservices), and P95 latency was \texttt{203.7 ms} (monolith) vs \texttt{732.3 ms} (microservices).
+
+Endpoint-level decomposition shows stronger downstream amplification in microservices order creation, as illustrated in Figure~\ref{fig-fault-per-endpoint-error-rate}.
+
+\begin{figure}[ht]
+	\centering
+	\includegraphics[width=0.85\textwidth]{fault_per_endpoint_error_rate.png}
+	\caption{While product-endpoint error rates are nearly identical between architectures ($\approx$13.3\%), the microservices POST /orders endpoint shows significantly higher failure---evidence that synchronous inter-service dependency amplifies upstream faults into composite operations.}
+	\label{fig-fault-per-endpoint-error-rate}
+\end{figure}
+
+\subsection{Latency Injection}
+
+Latency injection produced the strongest degradation in both architectures, with severe tail-latency growth and error-rate increases. The monolith measured \texttt{107.5 req/s}, \texttt{P95 3175.0 ms}, and \texttt{41.18\% errors}, while microservices measured \texttt{198.7 req/s}, \texttt{P95 2450.9 ms}, and \texttt{47.44\% errors}.
+
+Although throughput collapsed in both systems under this stress, aggregate P95 latency was higher for the monolith, while microservices showed higher overall error and stronger end-to-end failure in order processing. Endpoint-level errors are shown in Figure~\ref{fig-latency-per-endpoint-error-rate}, and temporal endpoint latency behavior is shown in Figure~\ref{fig-latency-endpoint-over-time}.
+
+\begin{figure}[ht]
+	\centering
+	\includegraphics[width=0.85\textwidth]{latency_per_endpoint_error_rate.png}
+	\caption{Per-endpoint error rates under latency injection showing that injected latency on the product path cascades into total order-creation failure when services are synchronously chained.}
+	\label{fig-latency-per-endpoint-error-rate}
+\end{figure}
+
+\begin{figure}[ht]
+	\centering
+	\includegraphics[width=\textwidth]{endpoint_latency_over_time.png}
+	\caption{Latency injection time-series by endpoint and architecture (run-averaged) indicating that tail latency compounds along the service chain rather than recovering over time.}
+	\label{fig-latency-endpoint-over-time}
+\end{figure}
+
+\subsection{Pool Exhaustion Sweep}\label{sec-pool-exhaustion-sweep}
+
+Pool-size sweeps reveal architecture-dependent contention behavior. Monolith throughput dropped sharply at pool size \texttt{2} compared with \texttt{5} and \texttt{10}, while the microservices architecture showed its highest throughput at pool size \texttt{2} and its highest observed error rate at pool size \texttt{10}.
+
+Given the fixed \texttt{2000 ms} timeout, queueing pressure can convert into timeout-driven failures; however, the observed error response is non-monotonic and architecture-specific rather than a simple inverse function of pool size.
+
+This pattern suggests that connection-pool tuning should be architecture-specific rather than transferred directly between deployment styles, consistent with the sweep trends in Figure~\ref{fig-pool-sweep-metrics}.
+
+\begin{figure}[ht]
+	\centering
+	\includegraphics[width=\textwidth]{pool_sweep_metrics.png}
+	\caption{Pool-size response is non-monotonic and architecture-specific. The monolith loses throughput sharply below pool size 5, while microservices peaks at size 2 and accumulates errors at size 10---indicating that connection governance strategies cannot be shared between deployment styles.}
+	\label{fig-pool-sweep-metrics}
+\end{figure}
+
+\section{Discussion}\label{sec-discussion}
+
+The results support three main observations.
+
+The baseline throughput gap---3420 vs 1291 req/s---was larger than expected going in. The monolith was expected to be faster, but not by a factor of 2.6$\times$. Part of that gap is almost certainly amplified by shared-host resource contention, as discussed in Section~\ref{sec-execution-environment}. But even accounting for that, the P95 latency difference (199 ms vs 493 ms) is hard to explain by resource competition alone---that is a 2.5$\times$ tail latency difference on what should be simple read operations. The most likely explanation is that the API gateway and inter-service HTTP hops introduce serialized wait time that compounds at the tail, which matches what Dean and Barroso describe as the ``straggler'' problem in distributed service graphs. For a team running on constrained hardware, this gap has real consequences: the microservices deployment is already using roughly half its performance budget before any stress is applied \cite{dean_tail_at_scale,deathstarbench}.
+
+The failure injection results reveal a genuinely surprising pattern: the product-endpoint error rate was nearly identical between architectures (13.33\% vs 13.36\%), yet the scenario-level error rate diverged---9.33\% for the monolith vs 10.78\% for microservices. That 1.45 percentage point difference might look small, but it represents the amplification cost of synchronous inter-service calls. When a product lookup fails in the monolith, it fails for that request and stops there. In the microservices setup, the same failure propagates into the order service, which depends on a successful product validation before it can complete. Circuit breakers or retry logic were not implemented in this experiment---partly to measure the raw propagation behavior, and partly because adding those controls would have made the implementations less comparable. The implication is that microservices without explicit resilience patterns are not inherently more fault-tolerant at the request level; they just move where the failure lands \cite{google_sre}.
+
+The pool sweep results were the most counterintuitive finding in the experiment. A simple pattern was expected: smaller pool = more contention = worse performance. Instead, microservices throughput was actually highest at pool size 2, then degraded as pool size increased. A plausible explanation is that at pool size 2, the microservices gateway queues requests aggressively and processes them in tight batches, which may reduce overhead from partial transactions and context switching. As the pool opens up, more concurrent requests hit the database simultaneously, and the overhead of managing those connections outweighs the parallelism benefit---at least within the resource envelope of a single host. This is speculative, and it is exactly the kind of finding that warrants a follow-up experiment on dedicated hardware. What can be stated with confidence is that a connection-pool configuration from a monolith deployment cannot be applied to a microservices deployment and expected to yield equivalent behavior \cite{hikaricp,postgres_max_connections}.
+
+From an engineering perspective, these findings suggest that microservices require stricter reliability controls (timeouts, retry discipline, backpressure, and pool governance) to prevent localized degradation from becoming user-visible failure in composite paths \cite{resilience_patterns,google_sre}.
+
+\subsection{Threats to Validity}
+
+Threats to validity include external validity, as the findings reflect one domain model, one workload mix, and one implementation stack. Internal validity is limited because deterministic injection improves reproducibility but does not represent random production-failure distributions. Construct validity is constrained because endpoint-level fault injection evaluates propagation behavior rather than orchestrator-driven restart resilience. Resource validity is the most significant threat in this study: both architectures ran on the same physical host, meaning the monolith and microservices deployments share underlying CPU and memory resources, introducing implicit contention that cannot be fully eliminated. This was mitigated in three ways: applying Docker resource limits to cap each service's CPU and memory allocation, resetting container state between every run to avoid warm-cache advantages, and running each scenario in complete isolation with a cooldown period before the next run. However, these controls do not fully neutralize OS-level scheduling effects. Readers should treat absolute throughput numbers as indicative rather than definitive, and should weight the degradation-relative-to-baseline analysis more heavily, since relative comparisons within each architecture are not affected by the shared-host issue in the same way cross-architecture comparisons are. A follow-up study on isolated cloud instances (e.g., two separate EC2 t3.medium nodes) would be the natural next step to test whether the baseline gap narrows significantly.
+
+\subsection{Reproducibility Artifact}
+
+Source code and experiment automation are available at:
+
+the project repository:
+Source code and experiment automation are publicly available \cite{repo_artifact} at:
+https://github.com/Bahaaio/monolith-vs-microservices-benchmark
+
+\subsection{Results Conclusion}
+
+\begin{table}[ht]
+	\caption{Results summary across scenarios and architectures.}
+	\centering
+	\begin{tabular}{l l r r r}
+		\toprule
+		\textbf{Scenario}   & \textbf{Architecture} & \textbf{Throughput} (req/s) & \textbf{P95} (ms) & \textbf{Error Rate} (\%) \\
+		\midrule
+		Baseline            & Monolith              & 3420.1                      & 199.0             & 0.00                     \\
+		                    & Microservices         & 1291.1                      & 493.7             & 0.77                     \\
+		Deterministic Fault & Monolith              & 3326.4                      & 203.7             & 9.33                     \\
+		                    & Microservices         & 1144.6                      & 732.3             & 10.78                    \\
+		Latency Injection   & Monolith              & 107.5                       & 3175.0            & 41.18                    \\
+		                    & Microservices         & 198.7                       & 2450.9            & 47.44                    \\
+		Pool Exhaustion     & Monolith              & 3171.9                      & 157.8             & 0.00                     \\
+		                    & Microservices         & 1305.2                      & 479.9             & 0.28                     \\
+		\bottomrule
+	\end{tabular}
+\end{table}
+
+\section{Conclusion}\label{sec-conclusion}
+
+This benchmark shows a consistent baseline efficiency advantage for the monolith under the tested workload and resource budget, with higher throughput and lower tail latency. Under injected stress, degradation patterns differ by architecture: aggregate tail-latency inflation can be larger in the monolith, while microservices preserves partial isolation on unrelated paths but exhibits stronger error amplification and order-path tail degradation.
+
+Pool-stress results further indicate that tuning is architecture-specific. Throughput, latency, and timeout-driven error behavior do not change monotonically with pool size, so connection and timeout settings should be validated empirically for each deployment style rather than copied directly between systems.
+
+These findings do not establish a universal winner. Monoliths remain strong for performance efficiency and lower operational overhead in this setting, while microservices retain organizational and deployment flexibility when supported by mature reliability controls. Architecture selection is therefore best treated as a workload- and operations-driven decision, guided by explicit performance targets, failure budgets, and reproducible benchmarking.
+
+\section{Appendix}\label{sec-appendix}
+
+Additional diagnostic visualizations are provided for transparency and replication support; distributional and run-level tail-latency variability views are shown in Figures~\ref{fig-appendix-latency-distribution} and \ref{fig-appendix-p95-boxplot}.
+
+\begin{figure}[ht]
+	\centering
+	\includegraphics[width=\textwidth]{latency_distribution.png}
+	\caption{Baseline latency distribution by architecture, the broader distribution means microservices users experience far more variability even under normal load.}
+	\label{fig-appendix-latency-distribution}
+\end{figure}
+
+\begin{figure}[ht]
+	\centering
+	\includegraphics[width=\textwidth]{p95_latency_across_runs_boxplot.png}
+	\caption{Baseline run-level P95 latency variability across repeated runs, the wider box confirms that microservices tail latency is not just higher on average but also less predictable run to run.}
+	\label{fig-appendix-p95-boxplot}
+\end{figure}
+
+\FloatBarrier
+\section*{Declarations}
+
+\subsection*{Competing Interests}
+The authors declare no competing interests.
+
+\subsection*{Funding}
+No funding was received for this work.
+
+\subsection*{Data Availability}
+Source code is available at https://github.com/Bahaaio/monolith-vs-microservices-benchmark.
+Raw experiment artifacts (approximately 5.8 GB) are available from the corresponding author
+upon reasonable request due to size.
+
+\bibliography{sn-bibliography}% common bib file
+
+\end{document}
