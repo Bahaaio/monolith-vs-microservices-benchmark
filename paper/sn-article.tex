@@ -1,94 +1,54 @@
-%Version 3.1 December 2024
-% See section 11 of the User Manual for version history
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%                                                                 %%
-%% Please do not use \input{...} to include other tex files.       %%
-%% Submit your LaTeX manuscript as one .tex document.              %%
-%%                                                                 %%
-%% All additional figures and files should be attached             %%
-%% separately and not embedded in the \TeX\ document itself.       %%
-%%                                                                 %%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\RequirePackage{fix-cm}
 
-%%\documentclass[referee,sn-basic]{sn-jnl}% referee option is meant for double line spacing
+\documentclass[smallextended,natbib]{svjour3}
 
-%%=======================================================%%
-%% to print line numbers in the margin use lineno option %%
-%%=======================================================%%
+\smartqed
 
-%%\documentclass[lineno,pdflatex,sn-basic]{sn-jnl}% Basic Springer Nature Reference Style/Chemistry Reference Style
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{placeins}
+\usepackage{url}
 
-%%=========================================================================================%%
-%% the documentclass is set to pdflatex as default. You can delete it if not appropriate.  %%
-%%=========================================================================================%%
-
-%%\documentclass[sn-basic]{sn-jnl}% Basic Springer Nature Reference Style/Chemistry Reference Style
-
-%%Note: the following reference styles support Namedate and Numbered referencing. By default the style follows the most common style. To switch between the options you can add or remove ‘Numbered’ in the optional parenthesis.
-%%The option is available for: sn-basic.bst, sn-chicago.bst%
-
-%%\documentclass[pdflatex,sn-nature]{sn-jnl}% Style for submissions to Nature Portfolio journals
-\documentclass[pdflatex,sn-basic]{sn-jnl}% Basic Springer Nature Reference Style/Chemistry Reference Style
-%%\documentclass[pdflatex,sn-mathphys-num]{sn-jnl}% Math and Physical Sciences Numbered Reference Style
-%%\documentclass[pdflatex,sn-mathphys-ay]{sn-jnl}% Math and Physical Sciences Author Year Reference Style
-%%\documentclass[pdflatex,sn-aps]{sn-jnl}% American Physical Society (APS) Reference Style
-%%\documentclass[pdflatex,sn-vancouver-num]{sn-jnl}% Vancouver Numbered Reference Style
-%%\documentclass[pdflatex,sn-vancouver-ay]{sn-jnl}% Vancouver Author Year Reference Style
-%%\documentclass[pdflatex,sn-apa]{sn-jnl}% APA Reference Style
-%%\documentclass[pdflatex,sn-chicago]{sn-jnl}% Chicago-based Humanities Reference Style
-
-%%%% Standard Packages
-%%<additional latex packages if required can be included here>
-
-\usepackage{graphicx}%
-\usepackage{amsmath}%
-\usepackage{booktabs}%
-\usepackage{placeins}%
-%%%%
-
-%%%%%=============================================================================%%%%
-%%%%  Remarks: This template is provided to aid authors with the preparation
-%%%%  of original research articles intended for submission to journals published
-%%%%  by Springer Nature. The guidance has been prepared in partnership with
-%%%%  production teams to conform to Springer Nature technical requirements.
-%%%%  Editorial and presentation requirements differ among journal portfolios and
-%%%%  research disciplines. You may find sections in this template are irrelevant
-%%%%  to your work and are empowered to omit any such section if allowed by the
-%%%%  journal you intend to submit to. The submission guidelines and policies
-%%%%  of the journal take precedence. A detailed User Manual is available in the
-%%%%  template package for technical guidance.
-%%%%%=============================================================================%%%%
-
-%%\unnumbered% uncomment this for unnumbered level heads
+\journalname{Empirical Software Engineering}
 
 \begin{document}
 
-\title[Monolith vs. Microservices Under Stress]{Monolith vs. Microservices Under Stress: A Controlled Benchmark of Fault Propagation, Latency, and Database Contention}
+\title{Monolith vs. Microservices Under Stress: A Controlled Benchmark of Fault Propagation, Latency, and Database Contention
+	\thanks{The authors would like to thank Dr. Ahmed Warad and Associate Professor Dr. Kareem Kamal for their guidance and support.}
+}
 
-\author*[1]{\fnm{Bahaa El Deen} \sur{Abd Elmoniem}}\email{bahaa.abdelmoniem.fci2023033@sadatacademy.edu.eg}
-\author[1]{\fnm{Ahmad} \sur{Louay}}\email{ahmed.mahmoud.fci2023071@sadatacademy.edu.eg}
-\author[1]{\fnm{Youssef} \sur{Khaled}}\email{yousef.ahmed.fci2023016@sadatacademy.edu.eg}
+\titlerunning{Monolith vs. Microservices Under Stress}
 
-\affil*[1]{\orgname{Sadat Academy for Management Sciences}, \orgaddress{\city{Cairo}, \country{Egypt}}}
+\author{Bahaa El Deen Mohamed \and Ahmad Louay \and Youssef Khaled}
 
-\abstract{While Microservices are widely adopted for large-organizational scalability and service autonomy, decomposition can introduce some drawbacks such as latency, failure-propagation, and data-tier coordination costs. This paper presents a controlled benchmark of monolithic and microservices implementations of the same e-commerce workload under equivalent business logic, identical datasets, and equivalent compute power. The evaluation covers four scenarios: baseline load, deterministic endpoint failure, fixed latency injection, and database connection pool stress. Apache JMeter was the tool used to perform stress tests and to gather and analyze data both during execution and across different scenarios, using metrics such as throughput, latency percentiles, error rates, confidence intervals, architectural changes, and performance degradation relative to the baseline.
+\authorrunning{Bahaa El Deen et al.}
 
-	The results show a noticeable baseline efficiency advantage for the monolithic architecture in this environment, while the microservices architecture shows greater cascading effects under stress conditions during complex order-processing operations . Latency injection produces the largest degradation in both architectures; aggregate P95 inflation is larger for the monolith, while microservices exhibits higher overall error and stronger order-path failure amplification. Pool-size sweeps reveal non-monotonic, architecture-dependent trade-offs between throughput, tail latency, and timeout-driven errors. These findings indicate that architecture choice and resilience tuning should be guided by workload characteristics, reliability targets, and empirical performance evidence rather than style preference alone.}
+\institute{Bahaa El Deen Abd Elmoniem \and Ahmad Louay \and Youssef Khaled \at
+	Faculty of Computers and Information, Sadat Academy for Management Sciences, Cairo, Egypt \\
+	\email{bahaa.abdelmoniem.fci2023033@sadatacademy.edu.eg}
+}
 
-\keywords{microservices; monolithic architecture; performance benchmarking; fault propagation; latency injection; database connection pooling}
+\date{Received: date / Accepted: date}
 
 \maketitle
 
-\section{Introduction}\label{sec-introduction}
+\begin{abstract}
+	While Microservices are widely adopted for large-organizational scalability and service autonomy, decomposition can introduce some drawbacks such as latency, failure-propagation, and data-tier coordination costs. This paper presents a controlled benchmark of monolithic and microservices implementations of the same e-commerce workload under equivalent business logic, identical datasets, and equivalent compute power. The evaluation covers four scenarios: baseline load, deterministic endpoint failure, fixed latency injection, and database connection pool stress. Apache JMeter was the tool used to perform stress tests and to gather and analyze data both during execution and across different scenarios, using metrics such as throughput, latency percentiles, error rates, confidence intervals, architectural changes, and performance degradation relative to the baseline.
+
+	The results show a noticeable baseline efficiency advantage for the monolithic architecture in this environment, while the microservices architecture shows greater cascading effects under stress conditions during complex order-processing operations. Latency injection produces the largest degradation in both architectures; aggregate P95 inflation is larger for the monolith, while microservices exhibits higher overall error and stronger order-path failure amplification. Pool-size sweeps reveal non-monotonic, architecture-dependent trade-offs between throughput, tail latency, and timeout-driven errors. These findings indicate that architecture choice and resilience tuning should be guided by workload characteristics, reliability targets, and empirical performance evidence rather than style preference alone.
+	\keywords{microservices \and monolithic architecture \and performance benchmarking \and fault propagation \and latency injection \and database connection pooling}
+\end{abstract}
+
+\section{Introduction}
 
 The ``monolith'' concept describes an architecture as being massive; glacial (slow); and tightly coupled. This is also a description of what represents a significant advantage of the monolithic software architecture: typically there will be only one code base. Therefore, the monolithic approach typically results in a much simplified and streamlined process for deploying, tracking, testing locally, and achieving strong baseline performance across many different environments. Consequently, monolithic architectures represent a viable option for early stage products that emphasize fast development times, low operational complexity, and less overhead from a platform perspective \cite{atlassian_microservices_vs_monolith,fowler_monolith_first}.
 
-On the flip side, migrating to a microservices-based architecture can be expensive and time-consuming. It generally requires significantly more defined and matured domain boundaries and operational processes \cite{jamshidi2018microservices, taibi2017processes}.
+On the flip side, migrating to a microservices-based architecture can be expensive and time-consuming. It generally requires significantly more defined and matured domain boundaries and operational processes \cite{jamshidi2018microservices,taibi2017processes}.
 
 Nevertheless, larger-scale monolithic systems can become increasingly difficult to modify over time. The tight coupling within monolithic systems inhibits rapid innovation and independent scalability. Moreover, it becomes necessary to implement modifications to a broader level of abstraction (the entire system), whereas with microservices, it is possible to effect evolutionary change at the level of individual services \cite{dragoni_microservices,newman_microservices}.
 
-As such, because of the long term issues that come with evolving and maintaining a monolithic system, many organizations will transition their applications toward microservices. Microservices allow the organization to break their application up into different independently deployable services with clearly defined responsibilities \cite{newman_microservices, richardson_microservices}.
+As such, because of the long term issues that come with evolving and maintaining a monolithic system, many organizations will transition their applications toward microservices. Microservices allow the organization to break their application up into different independently deployable services with clearly defined responsibilities \cite{newman_microservices,richardson_microservices}.
 
 
 As there are benefits to gain from the decentralized properties of the microservices-based architecture model, so to are there disadvantages. One disadvantage of the use of microservices is the cost associated with them. Functional components are easily decoupled when using a microservice oriented design. This is not the case with the data layer. In a monolithic-based architecture all database interactions are performed via a shared connection pool. This provides an optimization over the usage of resources. While building and designing microservices-based architectures, each microservice has its own connection overhead. As the number of microservices increases, the number of database connections is increased as well. Over a span of time, the number of connections created by microservices leads to a problem that is referred to as ``connection sprawl``. Connection sprawl is the state where the growing number of database connections eat up system resources no matter how much headroom is in play on the actual hardware below \cite{newman_microservices}.
@@ -102,7 +62,7 @@ Despite the volume of existing work on microservices performance, most published
 
 The rest of this paper is organized as follows. Section~\ref{sec-methodology} describes the methodology, including the systems under test, the four experimental scenarios, and how the single-host deployment constraint is controlled. Section~\ref{sec-results} presents the results across baseline, fault, latency, and pool-exhaustion conditions. Section~\ref{sec-discussion} discusses the three main findings including the counterintuitive pool-sweep behavior and the failure amplification pattern in microservices order paths. Section~\ref{sec-conclusion} concludes with architecture-selection guidance, and Section~\ref{sec-appendix} provides supplementary diagnostic figures. The experiment is fully reproducible from our public repository \cite{repo_artifact}.
 
-\section{Related Work}\label{sec-related-work}
+\section{Related Work}
 
 Research on microservices performance and architectural trade-offs has grown substantially since the mid-2010s, driven by widespread industry adoption. This section situates our work relative to the most relevant prior studies.
 
@@ -253,7 +213,9 @@ Cross-scenario aggregates provide a compact view of architecture-level differenc
 
 \subsection{Baseline Performance}
 
-Under baseline load, the monolith achieved substantially higher throughput and lower tail latency than the microservices deployment. Monolith mean throughput was \texttt{3420.1 req/s} versus \texttt{1291.1 req/s} for microservices, a throughput delta (micro vs mono) of \texttt{-62.25\%}. Monolith mean P95 was \texttt{199.0 ms}, while microservices mean P95 was \texttt{493.7 ms}.
+Under baseline load, the monolith achieved substantially higher throughput and lower tail latency than the microservices deployment.
+Monolith mean throughput was \texttt{3420.1 req/s} versus \texttt{1291.1 req/s} for microservices, a throughput delta (micro vs mono) of \texttt{-62.25\%}.
+Monolith mean P95 was \texttt{199.0 ms}, while microservices mean P95 was \texttt{493.7 ms}.
 
 These differences are consistent across repeated runs. Throughput confidence intervals are narrow for both architectures, while microservices show wider P95 uncertainty. Baseline endpoint behavior and throughput stability are shown in Figures~\ref{fig-baseline-endpoint-comparison} and \ref{fig-baseline-throughput-over-time}.
 
@@ -327,7 +289,7 @@ This research found the baseline gap in throughput much greater than anticipated
 
 The failure injection results reveal a surprisingly consistent pattern across architectures: product-endpoint error rates are nearly identical (13.33\% for monolithic architecture vs 13.36\%) yet, scenario-level error rates diverge by 9.33\% for the monolithic architecture and by 10.78\% for microservices. Although this 1.45 percentage point difference may seem small, it is the cost of synchronous inter-service calls amplifying the failure. A single failed product lookup in the monolith will fail only for that request and no further. Conversely, the same failure will propagate into the order service which requires successful validation of the product before completing. Since circuit breaker or retry logic were not implemented in this experiment to measure purely the behavior where failure was propagated through the services (as well as because adding those controls would have made the implementations less comparable), the implication is that while micro-services do not necessarily need explicit resilience patterns at the request level (they just move where the failure lands \cite{google_sre}), they are not more fault-tolerant without them.
 
-The findings from the pool sweep were the most surprising part of the overall findings. It was anticipated that there would be an obvious correlation between the size of the pool and how many contentions occur, thus determining how well each service performs. However, the data showed that when using two services (pool size = 2), the throughput for microservices was best. Then as you continued to add services to the pool and increase its size, throughput began to degrade. There is speculation about what could be happening here; one possible reason is that when using a pool size of 2, the microservice gateway will aggressively queue up all the requests received by it and process them in small groups. Processing these small groupings may help lower the amount of overhead created due to partial transaction processing and context switching. When the pool size increases, more concurrent requests are sent to the database at once. In addition, the overhead associated with managing all of these connections appears to exceed the benefits derived from this concurrency at least while operating within the confines of a single host's resource constraints. This is purely speculative and it is also the type of finding that should warrant further experimentation on dedicated hardware. At least it can be concluded with certainty that if you take a configuration of your connection pooling from your monolithic deployment, do not apply it to your microservices deployment and expect to get similar results \cite{hikaricp, postgres_max_connections}.
+The findings from the pool sweep were the most surprising part of the overall findings. It was anticipated that there would be an obvious correlation between the size of the pool and how many contentions occur, thus determining how well each service performs. However, the data showed that when using two services (pool size = 2), the throughput for microservices was best. Then as you continued to add services to the pool and increase its size, throughput began to degrade. There is speculation about what could be happening here; one possible reason is that when using a pool size of 2, the microservice gateway will aggressively queue up all the requests received by it and process them in small groups. Processing these small groupings may help lower the amount of overhead created due to partial transaction processing and context switching. When the pool size increases, more concurrent requests are sent to the database at once. In addition, the overhead associated with managing all of these connections appears to exceed the benefits derived from this concurrency at least while operating within the confines of a single host's resource constraints. This is purely speculative and it is also the type of finding that should warrant further experimentation on dedicated hardware. At least it can be concluded with certainty that if you take a configuration of your connection pooling from your monolithic deployment, do not apply it to your microservices deployment and expect to get similar results \cite{hikaricp,postgres_max_connections}.
 
 From an engineering perspective, these findings suggest that microservices require stricter reliability controls (timeouts, retry discipline, backpressure, and pool governance) to prevent localized degradation from becoming user-visible failure in composite paths \cite{resilience_patterns,google_sre}.
 
@@ -340,10 +302,15 @@ The primary threats to validity of this research include the issues of internal 
 Source code and experiment automation are available at:
 
 the project repository:
-Source code and experiment automation are publicly available \cite{repo_artifact} at:
-\url{https://github.com/Bahaaio/monolith-vs-microservices-benchmark}.
+Source code and experiment automation are publicly available at \cite{repo_artifact}.
 
 \subsection{Results Conclusion}
+
+Table ~\ref{tab-results-summary} presents the major performance outcomes of the various benchmarks.
+The baseline results illustrate that a monolithic system provided far greater throughput and less extreme tail latency compared to a micro-services based architecture under equivalent workloads and resources.
+When endpoint failures were deterministically simulated in each case, as expected both architectures suffered from increased error rates; however, because of dependency chaining, the micro-services configuration exhibited a larger growth in p95 latency (indicating how far failures propagated through the service chain).
+Artificial delay caused the largest decline in performance for both configurations, severely limiting throughput and increasing error-rates as it would be expected to impact end-user experience.
+In contrast to when endpoint failures occurred, the pool-exhaustion test demonstrated that although the monolithic design was relatively unaffected by the loss of connections in the pool, the micro-service configuration continued to exhibit elevated latency levels and a modest error-rate, further emphasizing the need to adjust connection pools on a per architecture basis.
 
 \begin{table}[ht]
 	\caption{Results summary across scenarios and architectures.}
@@ -389,20 +356,17 @@ Additional diagnostic visualizations are provided for transparency and replicati
 	\label{fig-appendix-p95-boxplot}
 \end{figure}
 
-\FloatBarrier
-\section*{Declarations}
+\section*{Conflict of interest}
 
-\subsection*{Competing Interests}
-The authors declare no competing interests.
+The authors declare that they have no conflict of interest.
 
-\subsection*{Funding}
-No funding was received for this work.
+\section*{Data Availability}
 
-\subsection*{Data Availability}
-Source code is available at https://github.com/Bahaaio/monolith-vs-microservices-benchmark.
+Source code is available at \cite{repo_artifact}.
 Raw experiment artifacts (approximately 5.8 GB) are available from the corresponding author
 upon reasonable request due to size.
 
+\bibliographystyle{spbasic}
 \bibliography{sn-bibliography}% common bib file
 
 \end{document}
